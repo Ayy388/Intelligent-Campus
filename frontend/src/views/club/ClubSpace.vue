@@ -87,7 +87,14 @@
               状态: <span class="text-steel">{{ myMember.status===1?'已通过':'待审核' }}</span>
             </div>
             <button 
-              v-if="myMember.role !== 'president'" 
+              v-if="myMember.role === 'president' && club?.status === 1" 
+              @click="handleDisband" 
+              class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+            >
+              解散社团
+            </button>
+            <button 
+              v-else-if="myMember.role !== 'president'" 
               @click="handleLeave" 
               class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
             >
@@ -109,7 +116,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getClub, getMembers, getMyMemberships, leaveClub } from '@/api/club'
+import { getClub, getMembers, getMyMemberships, leaveClub, disbandClub } from '@/api/club'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, OfficeBuilding, User, UserFilled, Document } from '@element-plus/icons-vue'
@@ -147,6 +154,19 @@ async function handleLeave() {
   } catch (e) {
     if (e !== 'cancel') {
       ElMessage.error('退出失败')
+    }
+  }
+}
+
+async function handleDisband() {
+  try {
+    await ElMessageBox.confirm('确定要解散该社团吗？此操作不可恢复！', '警告', { type: 'warning' })
+    await disbandClub(parseInt(route.params.id as string))
+    ElMessage.success('社团已解散')
+    router.push('/club/list')
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('解散失败')
     }
   }
 }

@@ -11,6 +11,9 @@ export function approveClub(id: number, status: number) {
 export function leaveClub(clubId: number) {
   return request.delete(`/club/member/${clubId}`)
 }
+export function disbandClub(clubId: number) {
+  return request.post(`/club/${clubId}/disband`)
+}
 
 export function applyMember(clubId: number, reason: string) {
   return request.post('/club/member/apply', null, { params: { clubId, reason } })

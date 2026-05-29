@@ -21,6 +21,7 @@ public class ClubServiceImpl implements ClubService {
     private final ActivityEnrollmentMapper enrollmentMapper;
     private final VenueMapper venueMapper;
     private final VenueBookingMapper bookingMapper;
+    private final com.campus.module.sys.mapper.SysUserMapper userMapper;
 
     @Override
     public List<Club> getClubs() {
@@ -94,8 +95,29 @@ public class ClubServiceImpl implements ClubService {
 
     @Override
     public List<ClubMember> getMembers(Long clubId) {
-        return memberMapper.selectList(new LambdaQueryWrapper<ClubMember>()
+        List<ClubMember> members = memberMapper.selectList(new LambdaQueryWrapper<ClubMember>()
             .eq(ClubMember::getClubId, clubId).orderByDesc(ClubMember::getApplyTime));
+        // 填充用户名
+        for (ClubMember member : members) {
+            if (member.getUserId() != null) {
+                var user = userMapper.selectById(member.getUserId());
+                if (user != null) {
+                    member.setUserName(user.getRealName());
+                }
+            }
+        }
+        return members;
+    }
+
+    @Override
+    public void disbandClub(Long clubId, Long userId) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
+            throw new BusinessException("只有社长才能解散社团");
+        }
+        club.setStatus(2); // 已解散
+        clubMapper.updateById(club);
     }
 
     @Override

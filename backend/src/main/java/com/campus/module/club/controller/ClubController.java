@@ -48,6 +48,12 @@ public class ClubController {
         return Result.ok();
     }
 
+    @PostMapping("/{id}/disband")
+    public Result<Void> disband(@PathVariable Long id, Authentication auth) {
+        clubService.disbandClub(id, getUserId(auth));
+        return Result.ok();
+    }
+
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }
 

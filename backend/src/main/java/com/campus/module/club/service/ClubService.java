@@ -15,6 +15,7 @@ public interface ClubService {
     List<ClubMember> getMembers(Long clubId);
     List<ClubMember> getMyMemberships(Long userId);
     void leaveClub(Long clubId, Long userId);
+    void disbandClub(Long clubId, Long userId);
 
     Page<Activity> pageActivities(Long clubId, int page, int size);
     void saveActivity(Activity a);
