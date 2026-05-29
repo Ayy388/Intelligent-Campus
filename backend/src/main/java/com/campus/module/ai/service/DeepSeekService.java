@@ -28,7 +28,7 @@ public class DeepSeekService {
     private final AiConversationMapper convMapper;
     private final AiMessageMapper msgMapper;
 
-    private static final String SYSTEM_PROMPT = "你是一个校园AI助手，负责回答关于校园生活、教务、行政等方面的问题。请用中文回答，保持友好专业。";
+    private static final String SYSTEM_PROMPT = "你是智能校园AI助手，服务于本校师生。\n你可以回答以下问题：\n- 校历查询：本学期为2026年春季学期，6月30日结束\n- 图书馆：开放时间 8:00-22:00，周末不休\n- 校园卡：充值可在第一食堂1楼窗口或在线充值\n- 请假流程：学生在行政服务-请假申请中提交，由辅导员审批\n- 选课：教务学习-在线选课中操作，每学期最多选5门\n- 成绩：教务学习-成绩查询中查看各学期成绩\n- 社团：社团列表中可浏览和申请加入，活动中心可报名参加\n- 场地：教学楼A座301报告厅、B101活动室、C座阶梯教室可预约\n请用中文回答，保持友好专业。如不确定请建议用户咨询相关部门。";
 
     public SseEmitter chat(Long userId, Long conversationId, String question) {
         SseEmitter emitter = new SseEmitter(300000L);
@@ -141,6 +141,10 @@ public class DeepSeekService {
         List<Map<String, String>> history = new ArrayList<>();
         for (AiMessage msg : messages) {
             history.add(Map.of("role", msg.getRole(), "content", msg.getContent()));
+        }
+        // 只保留最后20条消息（10轮对话）
+        if (history.size() > 20) {
+            history = history.subList(history.size() - 20, history.size());
         }
         return history;
     }

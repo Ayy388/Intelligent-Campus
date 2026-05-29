@@ -18,8 +18,9 @@ public class AdminServiceImpl implements AdminService {
     private final GuideMapper guideMapper;
 
     @Override
-    public Page<Notification> pageNotifications(int page, int size) {
+    public Page<Notification> pageNotifications(int page, int size, String category) {
         LambdaQueryWrapper<Notification> w = new LambdaQueryWrapper<>();
+        if (category != null && !category.isEmpty()) w.eq(Notification::getCategory, category);
         w.orderByDesc(Notification::getIsTop).orderByDesc(Notification::getCreateTime);
         return notiMapper.selectPage(new Page<>(page, size), w);
     }

@@ -1,6 +1,13 @@
 <template>
   <el-card>
-    <template #header><div style="display:flex;justify-content:space-between"><span>通知公告</span><el-button type="primary" @click="dialogVisible=true" v-if="userStore.role!=='student'">发布公告</el-button></div></template>
+    <template #header><div style="display:flex;justify-content:space-between"><span>通知公告</span>
+      <div class="flex gap-3 items-center">
+        <el-select v-model="filterCategory" size="small" placeholder="全部分类" clearable class="!w-28" @change="page=1;fetch()">
+          <el-option label="通用" value="general" /><el-option label="教务" value="edu" /><el-option label="行政" value="admin" />
+        </el-select>
+        <el-button type="primary" @click="dialogVisible=true" v-if="userStore.role!=='student'">发布公告</el-button>
+      </div>
+    </div></template>
     <el-table :data="tableData" v-loading="loading" @row-click="viewDetail">
       <el-table-column prop="title" label="标题">
         <template #default="{row}"><el-tag v-if="row.isTop" size="small" type="danger" style="margin-right:4px">置顶</el-tag>{{ row.title }}</template>
@@ -14,7 +21,7 @@
       <el-form :model="form"><el-form-item label="标题"><el-input v-model="form.title" /></el-form-item>
         <el-form-item label="分类"><el-select v-model="form.category"><el-option label="通用" value="general" /><el-option label="教务" value="edu" /><el-option label="行政" value="admin" /></el-select></el-form-item>
         <el-form-item label="内容"><el-input v-model="form.content" type="textarea" :rows="6" /></el-form-item>
-        <el-form-item><el-checkbox v-model="form.isTop">置顶</el-checkbox></el-form-item>
+        <el-form-item><el-checkbox v-model="form.isTop">置顶</el-checkbox><el-checkbox v-model="form.isUrgent" class="ml-4">紧急</el-checkbox></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submit">发布</el-button></template>
     </el-dialog>
@@ -32,9 +39,10 @@ const loading = ref(false)
 const page = ref(1)
 const total = ref(0)
 const dialogVisible = ref(false)
-const form = reactive({ title: '', content: '', category: 'general', isTop: false })
-async function fetch() { loading.value = true; const r = await getNotifications({ page: page.value, size: 10 }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
+const filterCategory = ref('')
+const form = reactive({ title: '', content: '', category: 'general', isTop: false, isUrgent: false })
+async function fetch() { loading.value = true; const r = await getNotifications({ page: page.value, size: 10, category: filterCategory.value || undefined }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
 function viewDetail(row: any) { ElMessage.info(row.title) }
-async function submit() { await addNotification({...form, isTop: form.isTop ? 1 : 0}); ElMessage.success('发布成功'); dialogVisible.value = false; fetch(); Object.assign(form, { title: '', content: '', category: 'general', isTop: false }) }
+async function submit() { await addNotification({...form, isTop: form.isTop ? 1 : 0, isUrgent: form.isUrgent ? 1 : 0}); ElMessage.success('发布成功'); dialogVisible.value = false; fetch(); Object.assign(form, { title: '', content: '', category: 'general', isTop: false, isUrgent: false }) }
 onMounted(fetch)
 </script>

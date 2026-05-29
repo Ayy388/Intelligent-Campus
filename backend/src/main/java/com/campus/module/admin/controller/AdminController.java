@@ -26,8 +26,9 @@ public class AdminController {
 
     @GetMapping("/notifications")
     public Result<PageResult<Notification>> listNotis(@RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return toPageResult(adminService.pageNotifications(page, size));
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String category) {
+        return toPageResult(adminService.pageNotifications(page, size, category));
     }
 
     @GetMapping("/notifications/{id}")

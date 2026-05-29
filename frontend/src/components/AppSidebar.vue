@@ -26,6 +26,7 @@
           <el-menu-item index="/edu/courses">课程列表</el-menu-item>
           <el-menu-item v-if="userStore.role === 'student'" index="/edu/selection">在线选课</el-menu-item>
           <el-menu-item index="/edu/grades">成绩查询</el-menu-item>
+          <el-menu-item v-if="userStore.role==='teacher' || userStore.role==='admin'" index="/edu/grade-entry">成绩录入</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="admin">

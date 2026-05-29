@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.module.admin.entity.*;
 
 public interface AdminService {
-    Page<Notification> pageNotifications(int page, int size);
+    Page<Notification> pageNotifications(int page, int size, String category);
     Notification getNotificationById(Long id);
     void saveNotification(Notification n);
     void updateNotification(Long id, Notification n);

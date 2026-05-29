@@ -12,6 +12,7 @@ const routes = [
       { path: 'edu/courses', name: 'CourseList', component: () => import('@/views/edu/CourseList.vue') },
       { path: 'edu/selection', name: 'CourseSelection', component: () => import('@/views/edu/CourseSelection.vue') },
       { path: 'edu/grades', name: 'GradeQuery', component: () => import('@/views/edu/GradeQuery.vue') },
+      { path: 'edu/grade-entry', name: 'GradeEntry', component: () => import('@/views/edu/GradeEntry.vue') },
       { path: 'admin/notifications', name: 'Notifications', component: () => import('@/views/admin/NotificationList.vue') },
       { path: 'admin/leave', name: 'LeaveApply', component: () => import('@/views/admin/LeaveApply.vue') },
       { path: 'admin/leave-approval', name: 'LeaveApproval', component: () => import('@/views/admin/LeaveApproval.vue') },

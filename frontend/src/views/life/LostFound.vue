@@ -5,7 +5,10 @@
         <button v-for="t in types" :key="t.value" @click="curType = t.value; page=1; fetch()"
           :class="['px-4 py-1.5 rounded-lg text-sm font-medium border transition-all', curType===t.value ? 'bg-ink text-white border-ink' : 'bg-white text-ash border-soft hover:border-line']">{{ t.label }}</button>
       </div>
-      <button @click="showDialog" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel">发布信息</button>
+      <div class="flex items-center gap-3">
+        <el-input v-model="keyword" placeholder="搜索..." size="small" clearable class="!w-48" @change="page=1;fetch()" />
+        <button @click="showDialog" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel">发布信息</button>
+      </div>
     </div>
     <div class="space-y-3">
       <div v-for="item in items" :key="item.id" class="bg-white rounded-xl border border-soft p-4 hover:shadow-sm transition-shadow">
@@ -47,10 +50,11 @@ const items = ref<any[]>([])
 const page = ref(1)
 const total = ref(0)
 const curType = ref<number | undefined>(undefined)
+const keyword = ref('')
 const dialogVisible = ref(false)
 const types = [{ label: '全部', value: undefined as number | undefined }, { label: '寻物', value: 0 }, { label: '招领', value: 1 }]
 const form = reactive({ type: 0, title: '', description: '', location: '', contact: '' })
-async function fetch() { const r = await getLostFound({ type: curType.value, page: page.value, size: 10 }); items.value = r.data.records; total.value = r.data.total }
+async function fetch() { const r = await getLostFound({ type: curType.value, keyword: keyword.value, page: page.value, size: 10 }); items.value = r.data.records; total.value = r.data.total }
 function showDialog() { form.type=0; form.title=''; form.description=''; form.location=''; form.contact=''; dialogVisible.value=true }
 async function submit() { await addLostFound(form); ElMessage.success('发布成功'); dialogVisible.value=false; fetch() }
 async function markDone(id:number) { await updateLostFoundStatus(id, 1); ElMessage.success('已标记'); fetch() }

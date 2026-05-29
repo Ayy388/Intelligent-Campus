@@ -39,15 +39,23 @@
       </div>
       <div class="bg-white rounded-xl border border-soft p-5">
         <div class="text-sm font-semibold text-ink mb-3">最近通知</div>
-        <div class="text-ash text-sm">暂无新通知</div>
+        <div v-for="n in notifications" :key="n.id" class="flex items-center justify-between py-3 border-b border-wash last:border-0">
+          <div>
+            <div class="text-sm text-ink font-medium">{{ n.title }}</div>
+            <div class="text-xs text-mist mt-1">{{ n.createTime?.substring(0,16) }}</div>
+          </div>
+          <el-tag v-if="n.isUrgent===1" size="small" type="danger">紧急</el-tag>
+        </div>
+        <div v-if="notifications.length===0" class="text-center text-mist text-sm py-4">暂无新通知</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useUserStore } from '@/store/user'
+import { getNotifications } from '@/api/admin'
 import { Reading, OfficeBuilding, ChatDotRound, Setting } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
@@ -70,4 +78,12 @@ const quickLinks = [
   { label: 'AI 助手', path: '/ai/chat', icon: ChatDotRound },
   { label: '办事指南', path: '/admin/guides', icon: Setting },
 ]
+
+const notifications = ref<any[]>([])
+
+async function fetchNotifications() {
+  try { const r = await getNotifications({ page: 1, size: 5 }); notifications.value = r.data.records || [] } catch {}
+}
+
+onMounted(() => { fetchNotifications() })
 </script>

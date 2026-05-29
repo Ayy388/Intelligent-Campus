@@ -20,9 +20,13 @@
         class="bg-white rounded-xl border border-soft p-5 hover:shadow-sm transition-shadow cursor-pointer">
         <div class="flex items-start justify-between mb-2">
           <div class="text-base font-semibold text-ink">{{ c.name }}</div>
-          <el-tag size="small" :type="c.status===1?'success':c.status===2?'danger':'warning'">
-            {{ c.status===1?'正常':c.status===2?'已解散':'待审核' }}
-          </el-tag>
+          <div class="flex items-center gap-1">
+            <button v-if="userStore.role==='admin'" @click.stop="showEdit(c)" class="text-xs text-mist hover:text-ink transition-colors px-1">编辑</button>
+            <button v-if="userStore.role==='admin'" @click.stop="doDeleteClub(c.id)" class="text-xs text-mist hover:text-red-400 transition-colors px-1">删除</button>
+            <el-tag size="small" :type="c.status===1?'success':c.status===2?'danger':'warning'">
+              {{ c.status===1?'正常':c.status===2?'已解散':'待审核' }}
+            </el-tag>
+          </div>
         </div>
         <div class="text-xs text-ash mb-3 line-clamp-2">{{ c.description || '暂无简介' }}</div>
         <div class="flex items-center justify-between text-xs text-mist">
@@ -100,14 +104,25 @@
         <el-button type="primary" @click="submitApply">提交申请</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="editVisible" title="编辑社团" width="450px">
+      <el-form :model="editForm">
+        <el-form-item label="社团名称"><el-input v-model="editForm.name" placeholder="请输入社团名称" /></el-form-item>
+        <el-form-item label="社团描述"><el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="请输入社团描述" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible=false">取消</el-button>
+        <el-button type="primary" @click="doEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getClubs, createClub, applyMember, approveMember, getMembers } from '@/api/club'
+import { getClubs, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers } from '@/api/club'
 import { useUserStore } from '@/store/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
 
@@ -197,6 +212,20 @@ async function doApproveMember(id: number, status: number) {
   await approveMember(id, status)
   ElMessage.success(status === 1 ? '已通过' : '已拒绝')
   if (detailClub.value) fetchMembers(detailClub.value.id)
+}
+
+const editVisible = ref(false)
+const editForm = reactive({ name: '', description: '' })
+const editClubId = ref<number | null>(null)
+function showEdit(c: any) { editClubId.value = c.id; editForm.name = c.name; editForm.description = c.description || ''; editVisible.value = true }
+async function doEdit() {
+  if (!editClubId.value) return
+  if (!editForm.name.trim()) { ElMessage.warning('请输入社团名称'); return }
+  try { await updateClub(editClubId.value, editForm); ElMessage.success('修改成功'); editVisible.value = false; fetchClubs() } catch { ElMessage.error('修改失败') }
+}
+async function doDeleteClub(id: number) {
+  try { await ElMessageBox.confirm('确认删除该社团？', '提示', { type: 'warning' }) } catch { return }
+  try { await deleteClub(id); ElMessage.success('已删除'); fetchClubs() } catch { ElMessage.error('删除失败') }
 }
 
 onMounted(fetchClubs)

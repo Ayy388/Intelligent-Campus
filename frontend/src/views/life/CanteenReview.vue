@@ -1,11 +1,12 @@
 <template>
   <div>
-    <div class="flex gap-3 mb-4 flex-wrap">
+    <div class="flex gap-3 mb-4 flex-wrap items-center">
       <button v-for="c in canteens" :key="c.id" @click="selectCanteen(c.id)"
         :class="['px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border',
           selectedCanteen === c.id ? 'bg-ink text-white border-ink' : 'bg-white text-ash border-soft hover:border-line']">
         {{ c.name }}
       </button>
+      <button v-if="userStore.role==='admin'" @click="showCanteenAdd" class="px-3 py-2 text-xs border border-dashed border-soft text-mist rounded-lg hover:border-ink hover:text-ink transition-colors">+ 管理食堂</button>
     </div>
     <div class="bg-white rounded-xl border border-soft p-5">
       <div class="flex items-center justify-between mb-4">
@@ -38,13 +39,41 @@
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submitReview">提交</el-button></template>
     </el-dialog>
+
+    <el-dialog v-model="canteenVisible" title="管理食堂" width="500px">
+      <div v-for="c in canteens" :key="c.id" class="flex items-center justify-between py-2 border-b border-wash last:border-0">
+        <div>
+          <span class="text-sm font-medium text-ink">{{ c.name }}</span>
+          <span class="text-xs text-mist ml-2">{{ c.location }}</span>
+        </div>
+        <div class="flex gap-2">
+          <button @click="showCanteenEdit(c)" class="text-xs text-ink hover:text-steel">编辑</button>
+          <button @click="doDeleteCanteen(c.id)" class="text-xs text-ash hover:text-red-400">删除</button>
+        </div>
+      </div>
+      <div class="mt-4">
+        <button @click="showCanteenForm(null)" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">新增食堂</button>
+      </div>
+      <template #footer><el-button @click="canteenVisible=false">关闭</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="canteenFormVisible" :title="canteenEditId ? '编辑食堂' : '新增食堂'" width="450px">
+      <el-form :model="canteenForm">
+        <el-form-item label="名称"><el-input v-model="canteenForm.name" placeholder="食堂名称" /></el-form-item>
+        <el-form-item label="位置"><el-input v-model="canteenForm.location" placeholder="位置描述" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="canteenForm.description" type="textarea" :rows="3" placeholder="食堂描述" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="canteenFormVisible=false">取消</el-button><el-button type="primary" @click="doSaveCanteen">保存</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getCanteens, getCanteenReviews, addCanteenReview } from '@/api/life'
-import { ElMessage } from 'element-plus'
+import { getCanteens, getCanteenReviews, addCanteenReview, saveCanteen, updateCanteen, deleteCanteen } from '@/api/life'
+import { useUserStore } from '@/store/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
+const userStore = useUserStore()
 const canteens = ref<any[]>([])
 const reviews = ref<any[]>([])
 const selectedCanteen = ref<number | null>(null)
@@ -58,4 +87,20 @@ async function fetchReviews() { const r = await getCanteenReviews({ canteenId: s
 function showDialog() { if (!canteens.value.length) { ElMessage.warning('暂无食堂'); return } form.canteenId = selectedCanteen.value; form.rating = 3; form.tasteRating = 3; form.priceRating = 3; form.serviceRating = 3; form.content = ''; dialogVisible.value = true }
 async function submitReview() { await addCanteenReview(form); ElMessage.success('点评成功'); dialogVisible.value = false; fetchReviews() }
 onMounted(fetchCanteens)
+
+const canteenVisible = ref(false), canteenFormVisible = ref(false), canteenEditId = ref<number | null>(null)
+const canteenForm = reactive({ name: '', location: '', description: '' })
+function showCanteenAdd() { canteenVisible.value = true }
+function showCanteenEdit(c: any) { canteenEditId.value = c.id; canteenForm.name = c.name; canteenForm.location = c.location || ''; canteenForm.description = c.description || ''; canteenFormVisible.value = true }
+function showCanteenForm(id: number | null) { canteenEditId.value = id; canteenForm.name = ''; canteenForm.location = ''; canteenForm.description = ''; canteenFormVisible.value = true }
+async function doSaveCanteen() {
+  if (!canteenForm.name.trim()) { ElMessage.warning('请输入名称'); return }
+  if (canteenEditId.value) { await updateCanteen(canteenEditId.value, canteenForm); ElMessage.success('修改成功') }
+  else { await saveCanteen(canteenForm); ElMessage.success('添加成功') }
+  canteenFormVisible.value = false; fetchCanteens()
+}
+async function doDeleteCanteen(id: number) {
+  try { await ElMessageBox.confirm('确认删除？', '提示', { type: 'warning' }) } catch { return }
+  await deleteCanteen(id); ElMessage.success('已删除'); fetchCanteens()
+}
 </script>

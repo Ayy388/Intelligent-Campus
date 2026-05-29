@@ -16,6 +16,7 @@
         <el-form-item label="开始时间"><el-date-picker v-model="form.startTime" type="datetime" /></el-form-item>
         <el-form-item label="结束时间"><el-date-picker v-model="form.endTime" type="datetime" /></el-form-item>
         <el-form-item label="原因"><el-input v-model="form.reason" type="textarea" :rows="4" /></el-form-item>
+        <el-form-item label="证明材料"><el-input v-model="form.attachment" placeholder="附件链接（可选）" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submit">提交</el-button></template>
     </el-dialog>
@@ -29,7 +30,7 @@ import { ElMessage } from 'element-plus'
 const leaves = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
-const form = reactive({ leaveType: '', startTime: '', endTime: '', reason: '' })
+const form = reactive({ leaveType: '', startTime: '', endTime: '', reason: '', attachment: '' })
 async function fetch() { loading.value = true; const r = await getLeaves({ page: 1, size: 50 }); leaves.value = r.data.records; loading.value = false }
 async function submit() { await applyLeave(form); ElMessage.success('提交成功'); dialogVisible.value = false; fetch() }
 onMounted(fetch)

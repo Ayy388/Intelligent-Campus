@@ -10,6 +10,10 @@ export function addCanteenReview(data: any) {
   return request.post('/life/canteen-reviews', data)
 }
 
+export function saveCanteen(data: any) { return request.post('/life/canteens', data) }
+export function updateCanteen(id: number, data: any) { return request.put(`/life/canteens/${id}`, data) }
+export function deleteCanteen(id: number) { return request.delete(`/life/canteens/${id}`) }
+
 export function getRecharges(params: any) {
   return request.get('/life/card-recharge', { params })
 }

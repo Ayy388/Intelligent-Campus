@@ -4,6 +4,7 @@ export function getClubs() { return request.get('/club/list') }
 export function getClub(id: number) { return request.get(`/club/${id}`) }
 export function createClub(data: any) { return request.post('/club', data) }
 export function updateClub(id: number, data: any) { return request.put(`/club/${id}`, data) }
+export function deleteClub(id: number) { return request.delete(`/club/${id}`) }
 
 export function applyMember(clubId: number, reason: string) {
   return request.post('/club/member/apply', null, { params: { clubId, reason } })
