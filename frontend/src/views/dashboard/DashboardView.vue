@@ -53,9 +53,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { useUserStore } from '@/store/user'
-import { getNotifications } from '@/api/admin'
+import { getNotifications, getLeaves } from '@/api/admin'
+import { getSelections } from '@/api/edu'
 import { Reading, OfficeBuilding, ChatDotRound, Setting } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
@@ -66,11 +67,11 @@ const currentDate = computed(() => {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 · 星期${weekdays[d.getDay()]}`
 })
 
-const stats = [
-  { label: '我的课程', value: 8 },
-  { label: '未读通知', value: 3 },
-  { label: '待审批', value: userStore.role === 'teacher' ? 2 : 0 },
-]
+const stats = reactive([
+  { label: '我的课程', value: 0 },
+  { label: '通知总数', value: 0 },
+  { label: '待审批', value: 0 },
+])
 
 const quickLinks = [
   { label: '课程列表', path: '/edu/courses', icon: Reading },
@@ -81,9 +82,32 @@ const quickLinks = [
 
 const notifications = ref<any[]>([])
 
-async function fetchNotifications() {
-  try { const r = await getNotifications({ page: 1, size: 5 }); notifications.value = r.data.records || [] } catch {}
+async function fetchStats() {
+  try {
+    if (userStore.role === 'student') {
+      const selectionsRes = await getSelections()
+      stats[0].value = selectionsRes.data?.length || 0
+    }
+    const notiRes = await getNotifications({ page: 1, size: 1 })
+    stats[1].value = notiRes.data?.total || 0
+    if (userStore.role === 'teacher') {
+      const leavesRes = await getLeaves({ page: 1, size: 1 })
+      stats[2].value = leavesRes.data?.total || 0
+    }
+  } catch (e) {
+    console.error('获取统计数据失败', e)
+  }
 }
 
-onMounted(() => { fetchNotifications() })
+async function fetchNotifications() {
+  try { 
+    const r = await getNotifications({ page: 1, size: 5 })
+    notifications.value = r.data.records || []
+  } catch {}
+}
+
+onMounted(() => { 
+  fetchStats()
+  fetchNotifications()
+})
 </script>
