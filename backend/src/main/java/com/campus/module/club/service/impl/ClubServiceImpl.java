@@ -139,6 +139,20 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
+    public void cancelDisband(Long clubId, Long userId) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
+            throw new BusinessException("只有社长才能撤销解散申请");
+        }
+        if (club.getStatus() != 3) {
+            throw new BusinessException("该社团未申请解散");
+        }
+        club.setStatus(1); // 恢复正常
+        clubMapper.updateById(club);
+    }
+
+    @Override
     public List<ClubMember> getMyMemberships(Long userId) {
         return memberMapper.selectList(new LambdaQueryWrapper<ClubMember>()
             .eq(ClubMember::getUserId, userId));

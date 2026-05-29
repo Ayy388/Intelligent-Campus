@@ -38,24 +38,20 @@
           </div>
           <div v-else class="space-y-3">
             <div v-for="m in members" :key="m.id" class="flex items-center justify-between py-2 border-b border-wash last:border-0">
-              <div class="flex items-center">
-                <div class="w-10 h-10 rounded-full bg-ink/10 flex items-center justify-center mr-3">
-                  <el-icon class="text-ink/50"><User /></el-icon>
-                </div>
-                <div>
-                  <div class="text-sm font-medium text-ink">{{ m.userName || '未知用户' }}</div>
-                  <div class="text-xs text-mist">
-                    <el-tag size="small" :type="m.role==='president'?'danger':m.role==='vice_president'?'warning':''" class="mr-2">
-                      {{ m.role==='president'?'社长':m.role==='vice_president'?'副社长':'成员' }}
-                    </el-tag>
-                    <span v-if="m.applyTime">加入时间: {{ m.applyTime.substring(0,10) }}</span>
+                <div class="flex items-center">
+                  <div class="w-10 h-10 rounded-full bg-ink/10 flex items-center justify-center mr-3">
+                    <el-icon class="text-ink/50"><User /></el-icon>
+                  </div>
+                  <div>
+                    <div class="text-sm font-medium text-ink">{{ m.userName || '未知用户' }}</div>
+                    <div class="text-xs text-mist">
+                      <el-tag size="small" :type="m.role==='president'?'danger':m.role==='vice_president'?'warning':''" class="mr-2">
+                        {{ m.role==='president'?'社长':m.role==='vice_president'?'副社长':'成员' }}
+                      </el-tag>
+                    </div>
                   </div>
                 </div>
               </div>
-              <el-tag size="small" :type="m.status===1?'success':'warning'">
-                {{ m.status===1?'已通过':'待审核' }}
-              </el-tag>
-            </div>
           </div>
         </div>
       </div>
@@ -66,8 +62,8 @@
           <div class="space-y-3 text-sm">
             <div class="flex justify-between">
               <span class="text-ash">社团状态</span>
-              <el-tag size="small" :type="club.status===1?'success':club.status===2?'danger':'warning'">
-                {{ club.status===1?'正常':club.status===2?'已解散':'待审核' }}
+              <el-tag size="small" :type="club.status===1?'success':club.status===2?'danger':club.status===3?'warning':'info'">
+                {{ club.status===1?'正常':club.status===2?'已解散':club.status===3?'申请解散':'待审核' }}
               </el-tag>
             </div>
             <div class="flex justify-between">
@@ -91,7 +87,14 @@
               @click="handleDisband" 
               class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
             >
-              解散社团
+              申请解散
+            </button>
+            <button 
+              v-if="myMember.role === 'president' && club?.status === 3" 
+              @click="handleCancelDisband" 
+              class="mt-4 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+            >
+              撤销解散申请
             </button>
             <button 
               v-else-if="myMember.role !== 'president'" 
@@ -116,7 +119,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getClub, getMembers, getMyMemberships, leaveClub, disbandClub } from '@/api/club'
+import { getClub, getMembers, getMyMemberships, leaveClub, disbandClub, cancelDisband } from '@/api/club'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, OfficeBuilding, User, UserFilled, Document } from '@element-plus/icons-vue'
@@ -160,13 +163,26 @@ async function handleLeave() {
 
 async function handleDisband() {
   try {
-    await ElMessageBox.confirm('确定要解散该社团吗？此操作不可恢复！', '警告', { type: 'warning' })
+    await ElMessageBox.confirm('确定要申请解散该社团吗？申请后需要管理员审核。', '提示', { type: 'warning' })
     await disbandClub(parseInt(route.params.id as string))
-    ElMessage.success('社团已解散')
-    router.push('/club/list')
+    ElMessage.success('已提交解散申请')
+    await fetchData()
   } catch (e) {
     if (e !== 'cancel') {
-      ElMessage.error('解散失败')
+      ElMessage.error('申请失败')
+    }
+  }
+}
+
+async function handleCancelDisband() {
+  try {
+    await ElMessageBox.confirm('确定要撤销解散申请吗？', '提示', { type: 'warning' })
+    await cancelDisband(parseInt(route.params.id as string))
+    ElMessage.success('已撤销解散申请')
+    await fetchData()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('撤销失败')
     }
   }
 }

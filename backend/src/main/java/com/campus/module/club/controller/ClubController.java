@@ -60,6 +60,12 @@ public class ClubController {
         return Result.ok();
     }
 
+    @PostMapping("/{id}/cancel-disband")
+    public Result<Void> cancelDisband(@PathVariable Long id, Authentication auth) {
+        clubService.cancelDisband(id, getUserId(auth));
+        return Result.ok();
+    }
+
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }
 

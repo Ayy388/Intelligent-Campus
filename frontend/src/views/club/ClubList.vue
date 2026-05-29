@@ -79,7 +79,7 @@
         </button>
       </div>
 
-      <div v-if="detailClub?.status===1" class="mb-4">
+      <div v-if="detailClub?.status===1 || detailClub?.status===3" class="mb-4">
         <button @click="goToSpace" class="px-4 py-1.5 border border-soft text-steel rounded-lg text-xs font-medium hover:bg-wash transition-colors">
           进入社团空间
         </button>
@@ -92,9 +92,6 @@
           <span class="text-ink font-medium">{{ m.userName || '未知用户' }}</span>
           <el-tag size="small" class="ml-2" :type="m.role==='president'?'danger':m.role==='vice_president'?'warning':''">
             {{ m.role==='president'?'社长':m.role==='vice_president'?'副社长':'成员' }}
-          </el-tag>
-          <el-tag size="small" class="ml-1" :type="m.status===1?'success':'warning'">
-            {{ m.status===1?'已通过':'待审核' }}
           </el-tag>
         </div>
         <div v-if="(userStore.role==='admin'||userStore.role==='teacher') && m.status===0" class="flex gap-2">
@@ -187,7 +184,7 @@ async function fetchClubs() {
     try {
       const memberships = await getMyMemberships()
       const myClubIds = new Set((memberships.data || []).map((m: any) => m.clubId))
-      data = data.filter((c: any) => myClubIds.has(c.id) && c.status === 1)
+      data = data.filter((c: any) => myClubIds.has(c.id) && (c.status === 1 || c.status === 3))
     } catch { data = [] }
   }
   total.value = data.length
