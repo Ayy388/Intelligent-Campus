@@ -5,6 +5,7 @@ import com.campus.module.ai.entity.AiConversation;
 import com.campus.module.ai.entity.AiMessage;
 import com.campus.module.ai.mapper.AiConversationMapper;
 import com.campus.module.ai.mapper.AiMessageMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -46,12 +47,6 @@ public class DeepSeekService {
             conv = convMapper.selectById(conversationId);
         }
 
-        AiMessage userMsg = new AiMessage();
-        userMsg.setConversationId(conversationId);
-        userMsg.setRole("user");
-        userMsg.setContent(question);
-        msgMapper.insert(userMsg);
-
         final Long finalConvId = conversationId;
 
         new Thread(() -> {
@@ -62,12 +57,18 @@ public class DeepSeekService {
                 messages.addAll(history);
                 messages.add(Map.of("role", "user", "content", question));
 
+                AiMessage userMsg = new AiMessage();
+                userMsg.setConversationId(finalConvId);
+                userMsg.setRole("user");
+                userMsg.setContent(question);
+                msgMapper.insert(userMsg);
+
                 Map<String, Object> body = new HashMap<>();
                 body.put("model", config.getModel());
                 body.put("messages", messages);
                 body.put("stream", true);
 
-                String jsonBody = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(body);
+                String jsonBody = new ObjectMapper().writeValueAsString(body);
 
                 HttpURLConnection conn = (HttpURLConnection) URI.create(config.getApiUrl()).toURL().openConnection();
                 conn.setRequestMethod("POST");
@@ -93,8 +94,7 @@ public class DeepSeekService {
                         if (line.startsWith("data: ") && !line.equals("data: [DONE]")) {
                             String data = line.substring(6);
                             try {
-                                Map<String, Object> chunk = new com.fasterxml.jackson.databind.ObjectMapper()
-                                        .readValue(data, Map.class);
+                                Map<String, Object> chunk = new ObjectMapper().readValue(data, Map.class);
                                 List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
                                 if (choices != null && !choices.isEmpty()) {
                                     Map<String, Object> delta = (Map<String, Object>) choices.get(0).get("delta");
@@ -129,12 +129,8 @@ public class DeepSeekService {
     }
 
     private void sendError(SseEmitter emitter, String message) {
-        try {
-            emitter.send(SseEmitter.event().name("error").data(message));
-        } catch (Exception ignored) {}
-        try {
-            emitter.complete();
-        } catch (Exception ignored) {}
+        try { emitter.send(SseEmitter.event().name("error").data(message)); } catch (Exception ignored) {}
+        try { emitter.complete(); } catch (Exception ignored) {}
     }
 
     private List<Map<String, String>> buildHistory(Long conversationId) {

@@ -30,7 +30,12 @@ public class MessageController {
     }
 
     @GetMapping("/conversations/{id}/detail")
-    public Result<List<MessageDetail>> messages(@PathVariable Long id) {
+    public Result<List<MessageDetail>> messages(@PathVariable Long id, Authentication auth) {
+        Conversation conv = messageService.getConvById(id);
+        Long userId = getUserId(auth);
+        if (conv == null || (!conv.getUser1Id().equals(userId) && !conv.getUser2Id().equals(userId))) {
+            throw new com.campus.common.BusinessException(403, "无权访问");
+        }
         return Result.ok(messageService.getMessages(id));
     }
 
@@ -43,8 +48,8 @@ public class MessageController {
     }
 
     @PutMapping("/read/{id}")
-    public Result<Void> read(@PathVariable Long id) {
-        messageService.markRead(id);
+    public Result<Void> read(@PathVariable Long id, Authentication auth) {
+        messageService.markRead(id, getUserId(auth));
         return Result.ok();
     }
 

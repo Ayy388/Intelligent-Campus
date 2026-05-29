@@ -9,7 +9,9 @@ public interface MessageService {
     Page<Conversation> getConversations(Long userId, int page, int size);
     List<MessageDetail> getMessages(Long conversationId);
     MessageDetail sendMessage(Long senderId, Long conversationId, Long peerId, String content);
+    Conversation getConvById(Long id);
     void markRead(Long messageId);
+    void markRead(Long messageId, Long userId);
     Page<AnnouncementPush> pageAnnouncements(int page, int size);
     void pushAnnouncement(AnnouncementPush ap);
 }

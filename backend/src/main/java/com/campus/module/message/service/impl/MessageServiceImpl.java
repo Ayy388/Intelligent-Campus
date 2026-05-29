@@ -28,14 +28,28 @@ public class MessageServiceImpl implements MessageService {
         LambdaQueryWrapper<Conversation> w = new LambdaQueryWrapper<>();
         w.eq(Conversation::getUser1Id, userId).or().eq(Conversation::getUser2Id, userId);
         w.orderByDesc(Conversation::getLastTime);
-        return convMapper.selectPage(new Page<>(page, size), w);
+        Page<Conversation> result = convMapper.selectPage(new Page<>(page, size), w);
+        for (Conversation c : result.getRecords()) {
+            Long peerId = c.getUser1Id().equals(userId) ? c.getUser2Id() : c.getUser1Id();
+            SysUser peer = userMapper.selectById(peerId);
+            if (peer != null) c.setPeerName(peer.getRealName());
+        }
+        return result;
     }
 
     @Override
+    public Conversation getConvById(Long id) { return convMapper.selectById(id); }
+
+    @Override
     public List<MessageDetail> getMessages(Long conversationId) {
-        return detailMapper.selectList(new LambdaQueryWrapper<MessageDetail>()
+        List<MessageDetail> list = detailMapper.selectList(new LambdaQueryWrapper<MessageDetail>()
                 .eq(MessageDetail::getConversationId, conversationId)
                 .orderByAsc(MessageDetail::getCreateTime));
+        for (MessageDetail m : list) {
+            SysUser sender = userMapper.selectById(m.getSenderId());
+            if (sender != null) m.setSenderName(sender.getRealName());
+        }
+        return list;
     }
 
     @Override
@@ -82,10 +96,27 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
+    public void markRead(Long messageId, Long userId) {
+        MessageDetail detail = detailMapper.selectById(messageId);
+        if (detail == null) return;
+        Conversation conv = convMapper.selectById(detail.getConversationId());
+        if (conv == null || (!conv.getUser1Id().equals(userId) && !conv.getUser2Id().equals(userId))) {
+            throw new BusinessException(403, "无权操作");
+        }
+        detail.setIsRead(1);
+        detailMapper.updateById(detail);
+    }
+
+    @Override
     public Page<AnnouncementPush> pageAnnouncements(int page, int size) {
         LambdaQueryWrapper<AnnouncementPush> w = new LambdaQueryWrapper<>();
         w.orderByDesc(AnnouncementPush::getSendTime);
-        return apMapper.selectPage(new Page<>(page, size), w);
+        Page<AnnouncementPush> result = apMapper.selectPage(new Page<>(page, size), w);
+        for (AnnouncementPush a : result.getRecords()) {
+            SysUser publisher = userMapper.selectById(a.getPublisherId());
+            if (publisher != null) a.setPublisherName(publisher.getRealName());
+        }
+        return result;
     }
 
     @Override

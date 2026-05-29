@@ -44,7 +44,11 @@ public class AiChatController {
     }
 
     @GetMapping("/conversations/{id}")
-    public Result<List<AiMessage>> messages(@PathVariable Long id) {
+    public Result<List<AiMessage>> messages(@PathVariable Long id, Authentication auth) {
+        AiConversation conv = convMapper.selectById(id);
+        if (conv == null || !conv.getUserId().equals(getUserId(auth))) {
+            throw new com.campus.common.BusinessException(403, "无权访问");
+        }
         return Result.ok(msgMapper.selectList(
                 new LambdaQueryWrapper<AiMessage>()
                         .eq(AiMessage::getConversationId, id)
@@ -52,7 +56,11 @@ public class AiChatController {
     }
 
     @DeleteMapping("/conversations/{id}")
-    public Result<Void> deleteConv(@PathVariable Long id) {
+    public Result<Void> deleteConv(@PathVariable Long id, Authentication auth) {
+        AiConversation conv = convMapper.selectById(id);
+        if (conv == null || !conv.getUserId().equals(getUserId(auth))) {
+            throw new com.campus.common.BusinessException(403, "无权访问");
+        }
         msgMapper.delete(new LambdaQueryWrapper<AiMessage>().eq(AiMessage::getConversationId, id));
         convMapper.deleteById(id);
         return Result.ok();
