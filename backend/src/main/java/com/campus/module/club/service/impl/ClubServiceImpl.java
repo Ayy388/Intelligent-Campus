@@ -114,9 +114,27 @@ public class ClubServiceImpl implements ClubService {
         Club club = clubMapper.selectById(clubId);
         if (club == null) throw new BusinessException("社团不存在");
         if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
-            throw new BusinessException("只有社长才能解散社团");
+            throw new BusinessException("只有社长才能申请解散社团");
         }
-        club.setStatus(2); // 已解散
+        if (club.getStatus() != 1) {
+            throw new BusinessException("只有正常状态的社团才能申请解散");
+        }
+        club.setStatus(3); // 申请解散
+        clubMapper.updateById(club);
+    }
+
+    @Override
+    public void approveDisband(Long clubId, Integer status) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        if (club.getStatus() != 3) {
+            throw new BusinessException("该社团未申请解散");
+        }
+        if (status == 1) {
+            club.setStatus(2); // 正式解散
+        } else {
+            club.setStatus(1); // 拒绝解散，恢复正常
+        }
         clubMapper.updateById(club);
     }
 

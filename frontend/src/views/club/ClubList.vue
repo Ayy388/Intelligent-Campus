@@ -23,8 +23,8 @@
           <div class="flex items-center gap-1">
             <button v-if="userStore.role==='admin'" @click.stop="showEdit(c)" class="text-xs text-mist hover:text-ink transition-colors px-1">编辑</button>
             <button v-if="userStore.role==='admin'" @click.stop="doDeleteClub(c.id)" class="text-xs text-mist hover:text-red-400 transition-colors px-1">删除</button>
-            <el-tag size="small" :type="c.status===1?'success':c.status===2?'danger':'warning'">
-              {{ c.status===1?'正常':c.status===2?'已解散':'待审核' }}
+            <el-tag size="small" :type="c.status===1?'success':c.status===2?'danger':c.status===3?'warning':'info'">
+              {{ c.status===1?'正常':c.status===2?'已解散':c.status===3?'申请解散':'待审核' }}
             </el-tag>
           </div>
         </div>
@@ -55,6 +55,15 @@
         </button>
         <button @click="doApproveClub(detailClub.id,2)" class="px-4 py-1.5 border border-soft text-ash rounded-lg text-xs font-medium hover:bg-wash transition-colors">
           拒绝
+        </button>
+      </div>
+
+      <div v-if="userStore.role==='admin' && detailClub?.status===3" class="mb-4">
+        <button @click="doApproveDisband(detailClub.id,1)" class="px-4 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-colors mr-2">
+          确认解散
+        </button>
+        <button @click="doApproveDisband(detailClub.id,0)" class="px-4 py-1.5 border border-soft text-ash rounded-lg text-xs font-medium hover:bg-wash transition-colors">
+          拒绝解散
         </button>
       </div>
 
@@ -244,6 +253,17 @@ async function doApproveClub(id: number, status: number) {
   ElMessage.success(status === 1 ? '已通过' : '已拒绝')
   fetchClubs()
   detailVisible.value = false
+}
+
+async function doApproveDisband(id: number, status: number) {
+  try {
+    await approveDisband(id, status)
+    ElMessage.success(status === 1 ? '已确认解散' : '已拒绝解散')
+    fetchClubs()
+    detailVisible.value = false
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
 
 function goToSpace() {

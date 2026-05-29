@@ -54,6 +54,12 @@ public class ClubController {
         return Result.ok();
     }
 
+    @PostMapping("/{id}/approve-disband")
+    public Result<Void> approveDisband(@PathVariable Long id, @RequestParam Integer status) {
+        clubService.approveDisband(id, status);
+        return Result.ok();
+    }
+
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }
 
