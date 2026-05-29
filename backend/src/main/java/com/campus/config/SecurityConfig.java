@@ -39,8 +39,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/edu/grades", "/api/edu/grades/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/edu/grades").hasAnyRole("admin", "teacher")
 
-                .requestMatchers("/api/admin/notifications", "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
-                .requestMatchers("/api/admin/guides", "/api/admin/guides/**").hasRole("admin")
+                // 通知+指南: 查看→所有人, 增删改→teacher/admin
+                .requestMatchers(HttpMethod.GET, "/api/admin/notifications", "/api/admin/notifications/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/admin/notifications").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.PUT, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.DELETE, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.GET, "/api/admin/guides", "/api/admin/guides/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/admin/guides").hasRole("admin")
+                .requestMatchers(HttpMethod.PUT, "/api/admin/guides/**").hasRole("admin")
+                .requestMatchers(HttpMethod.DELETE, "/api/admin/guides/**").hasRole("admin")
                 .requestMatchers("/api/admin/leaves/**").authenticated()
 
                 .requestMatchers("/api/life/canteens/**", "/api/life/canteen-reviews/**").authenticated()
