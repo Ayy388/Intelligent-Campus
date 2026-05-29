@@ -12,6 +12,7 @@ public interface ClubService {
     ClubMember applyMember(Long clubId, Long userId, String reason);
     void approveMember(Long memberId, Integer status);
     List<ClubMember> getMembers(Long clubId);
+    List<ClubMember> getMyMemberships(Long userId);
 
     Page<Activity> pageActivities(Long clubId, int page, int size);
     void saveActivity(Activity a);

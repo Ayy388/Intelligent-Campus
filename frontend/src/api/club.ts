@@ -13,6 +13,7 @@ export function approveMember(id: number, status: number) {
   return request.put(`/club/member/${id}`, null, { params: { status } })
 }
 export function getMembers(clubId: number) { return request.get(`/club/${clubId}/members`) }
+export function getMyMemberships() { return request.get('/club/member/my') }
 
 export function getActivities(params: any) { return request.get('/club/activity', { params }) }
 export function createActivity(data: any) { return request.post('/club/activity', data) }

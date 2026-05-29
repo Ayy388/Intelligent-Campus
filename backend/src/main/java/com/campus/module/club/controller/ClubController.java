@@ -44,6 +44,11 @@ public class ClubController {
         clubService.approveMember(id, status); return Result.ok();
     }
 
+    @GetMapping("/member/my")
+    public Result<List<ClubMember>> myMembers(Authentication auth) {
+        return Result.ok(clubService.getMyMemberships(getUserId(auth)));
+    }
+
     @GetMapping("/{clubId}/members")
     public Result<List<ClubMember>> members(@PathVariable Long clubId) {
         return Result.ok(clubService.getMembers(clubId));

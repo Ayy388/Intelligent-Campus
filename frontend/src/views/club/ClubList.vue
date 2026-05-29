@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getClubs, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers } from '@/api/club'
+import { getClubs, getMyMemberships, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers } from '@/api/club'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -152,9 +152,11 @@ async function fetchClubs() {
   const r = await getClubs()
   let data = r.data || []
   if (activeTab.value === 'my') {
-    data = data.filter((c: any) => {
-      return c.presidentId === userStore.userInfo?.id || c.advisorId === userStore.userInfo?.id
-    })
+    try {
+      const memberships = await getMyMemberships()
+      const myClubIds = new Set((memberships.data || []).map((m: any) => m.clubId))
+      data = data.filter((c: any) => myClubIds.has(c.id))
+    } catch { data = [] }
   }
   total.value = data.length
   const start = (page.value - 1) * pageSize

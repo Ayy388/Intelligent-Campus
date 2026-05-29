@@ -75,6 +75,12 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
+    public List<ClubMember> getMyMemberships(Long userId) {
+        return memberMapper.selectList(new LambdaQueryWrapper<ClubMember>()
+            .eq(ClubMember::getUserId, userId));
+    }
+
+    @Override
     public Page<Activity> pageActivities(Long clubId, int page, int size) {
         LambdaQueryWrapper<Activity> w = new LambdaQueryWrapper<>();
         if (clubId != null) w.eq(Activity::getClubId, clubId);
