@@ -1,0 +1,103 @@
+package com.campus.module.growth.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.common.BusinessException;
+import com.campus.module.growth.entity.*;
+import com.campus.module.growth.mapper.*;
+import com.campus.module.growth.service.GrowthService;
+import com.campus.module.sys.mapper.SysUserMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class GrowthServiceImpl implements GrowthService {
+    private final StudentProfileMapper profileMapper;
+    private final CheckInMapper checkinMapper;
+    private final CheckInRecordMapper recordMapper;
+    private final SysUserMapper userMapper;
+
+    @Override
+    public StudentProfile getProfile(Long studentId) {
+        return profileMapper.selectOne(new LambdaQueryWrapper<StudentProfile>()
+            .eq(StudentProfile::getStudentId, studentId));
+    }
+
+    @Override
+    public void saveOrUpdateProfile(StudentProfile p) {
+        StudentProfile existing = getProfile(p.getStudentId());
+        if (existing != null) {
+            p.setId(existing.getId());
+            profileMapper.updateById(p);
+        } else {
+            profileMapper.insert(p);
+        }
+    }
+
+    @Override
+    public void addEvaluation(Long studentId, String content, Long teacherId) {
+        StudentProfile profile = getProfile(studentId);
+        if (profile == null) {
+            profile = new StudentProfile();
+            profile.setStudentId(studentId);
+            profile.setEvaluation(content);
+            profileMapper.insert(profile);
+        } else {
+            String existing = profile.getEvaluation() != null ? profile.getEvaluation() + "\n" : "";
+            profile.setEvaluation(existing + content);
+            profileMapper.updateById(profile);
+        }
+    }
+
+    @Override
+    public Page<CheckIn> pageCheckIns(Long teacherId, int page, int size) {
+        LambdaQueryWrapper<CheckIn> w = new LambdaQueryWrapper<>();
+        if (teacherId != null) w.eq(CheckIn::getTeacherId, teacherId);
+        w.orderByDesc(CheckIn::getCreateTime);
+        return checkinMapper.selectPage(new Page<>(page, size), w);
+    }
+
+    @Override
+    public CheckIn createCheckIn(CheckIn c) {
+        checkinMapper.insert(c);
+        return c;
+    }
+
+    @Override
+    @Transactional
+    public CheckInRecord doCheckIn(Long checkinId, Long studentId) {
+        CheckIn checkin = checkinMapper.selectById(checkinId);
+        if (checkin == null) throw new BusinessException("签到不存在");
+        if (checkin.getStatus() != 1) throw new BusinessException("签到已结束");
+
+        Long cnt = recordMapper.selectCount(new LambdaQueryWrapper<CheckInRecord>()
+            .eq(CheckInRecord::getCheckinId, checkinId).eq(CheckInRecord::getStudentId, studentId));
+        if (cnt > 0) throw new BusinessException("已签到");
+
+        CheckInRecord record = new CheckInRecord();
+        record.setCheckinId(checkinId);
+        record.setStudentId(studentId);
+        recordMapper.insert(record);
+
+        checkin.setCheckedCount((checkin.getCheckedCount() != null ? checkin.getCheckedCount() : 0) + 1);
+        checkinMapper.updateById(checkin);
+        return record;
+    }
+
+    @Override
+    public List<CheckInRecord> getCheckInRecords(Long checkinId) {
+        return recordMapper.selectList(new LambdaQueryWrapper<CheckInRecord>()
+            .eq(CheckInRecord::getCheckinId, checkinId));
+    }
+
+    @Override
+    public boolean getCheckInStatus(Long checkinId, Long studentId) {
+        return recordMapper.selectCount(new LambdaQueryWrapper<CheckInRecord>()
+            .eq(CheckInRecord::getCheckinId, checkinId)
+            .eq(CheckInRecord::getStudentId, studentId)) > 0;
+    }
+}
