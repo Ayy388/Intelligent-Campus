@@ -29,7 +29,17 @@ public class ClubController {
     public Result<Club> detail(@PathVariable Long id) { return Result.ok(clubService.getClubById(id)); }
 
     @PostMapping
-    public Result<Void> create(@RequestBody Club c) { clubService.saveClub(c); return Result.ok(); }
+    public Result<Void> create(@RequestBody Club c, Authentication auth) { 
+        c.setPresidentId(getUserId(auth));
+        clubService.saveClub(c); 
+        return Result.ok(); 
+    }
+    
+    @PutMapping("/{id}/approve")
+    public Result<Void> approve(@PathVariable Long id, @RequestParam Integer status) {
+        clubService.approveClub(id, status);
+        return Result.ok();
+    }
 
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }

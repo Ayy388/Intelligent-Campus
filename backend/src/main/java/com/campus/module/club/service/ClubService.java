@@ -9,6 +9,7 @@ public interface ClubService {
     Club getClubById(Long id);
     void saveClub(Club c);
     void updateClub(Long id, Club c);
+    void approveClub(Long clubId, Integer status);
     ClubMember applyMember(Long clubId, Long userId, String reason);
     void approveMember(Long memberId, Integer status);
     List<ClubMember> getMembers(Long clubId);

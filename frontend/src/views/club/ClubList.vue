@@ -2,7 +2,7 @@
   <div>
     <div class="flex items-center justify-between mb-5">
       <span class="text-lg font-bold text-ink">社团列表</span>
-      <button v-if="userStore.role==='admin'" @click="showCreate" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">创建社团</button>
+      <button @click="showCreate" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">创建社团</button>
     </div>
 
     <div class="flex gap-2 mb-5">
@@ -49,9 +49,24 @@
         </div>
       </div>
 
-      <div v-if="userStore.role==='student'" class="mb-4">
+      <div v-if="userStore.role==='admin' && detailClub?.status===0" class="mb-4">
+        <button @click="doApproveClub(detailClub.id,1)" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors mr-2">
+          审核通过
+        </button>
+        <button @click="doApproveClub(detailClub.id,2)" class="px-4 py-1.5 border border-soft text-ash rounded-lg text-xs font-medium hover:bg-wash transition-colors">
+          拒绝
+        </button>
+      </div>
+
+      <div v-if="userStore.role==='student' && detailClub?.status===1" class="mb-4">
         <button :disabled="myMemberStatus" @click="startApply(detailClub?.id)" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           {{ myMemberStatus ? '已申请/已加入' : '申请加入' }}
+        </button>
+      </div>
+
+      <div v-if="detailClub?.status===1" class="mb-4">
+        <button @click="goToSpace" class="px-4 py-1.5 border border-soft text-steel rounded-lg text-xs font-medium hover:bg-wash transition-colors">
+          进入社团空间
         </button>
       </div>
 
@@ -120,11 +135,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getClubs, getMyMemberships, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers } from '@/api/club'
+import { useRouter } from 'vue-router'
+import { getClubs, getMyMemberships, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers, approveClub } from '@/api/club'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
+const router = useRouter()
 
 const tabs = [
   { key: 'all', label: '全部社团' },
@@ -155,7 +172,7 @@ async function fetchClubs() {
     try {
       const memberships = await getMyMemberships()
       const myClubIds = new Set((memberships.data || []).map((m: any) => m.clubId))
-      data = data.filter((c: any) => myClubIds.has(c.id))
+      data = data.filter((c: any) => myClubIds.has(c.id) && c.status === 1)
     } catch { data = [] }
   }
   total.value = data.length
@@ -187,7 +204,7 @@ async function doCreate() {
   if (!createForm.name.trim()) { ElMessage.warning('请输入社团名称'); return }
   try {
     await createClub(createForm)
-    ElMessage.success('创建成功')
+    ElMessage.success('创建成功，请等待审核')
     createVisible.value = false
     fetchClubs()
   } catch { ElMessage.error('创建失败') }
@@ -214,6 +231,20 @@ async function doApproveMember(id: number, status: number) {
   await approveMember(id, status)
   ElMessage.success(status === 1 ? '已通过' : '已拒绝')
   if (detailClub.value) fetchMembers(detailClub.value.id)
+}
+
+async function doApproveClub(id: number, status: number) {
+  await approveClub(id, status)
+  ElMessage.success(status === 1 ? '已通过' : '已拒绝')
+  fetchClubs()
+  detailVisible.value = false
+}
+
+function goToSpace() {
+  if (detailClub.value) {
+    detailVisible.value = false
+    router.push(`/club/space/${detailClub.value.id}`)
+  }
 }
 
 const editVisible = ref(false)

@@ -5,6 +5,9 @@ export function getClub(id: number) { return request.get(`/club/${id}`) }
 export function createClub(data: any) { return request.post('/club', data) }
 export function updateClub(id: number, data: any) { return request.put(`/club/${id}`, data) }
 export function deleteClub(id: number) { return request.delete(`/club/${id}`) }
+export function approveClub(id: number, status: number) {
+  return request.put(`/club/${id}/approve`, null, { params: { status } })
+}
 
 export function applyMember(clubId: number, reason: string) {
   return request.post('/club/member/apply', null, { params: { clubId, reason } })

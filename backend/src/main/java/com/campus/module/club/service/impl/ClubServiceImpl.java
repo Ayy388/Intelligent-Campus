@@ -31,10 +31,34 @@ public class ClubServiceImpl implements ClubService {
     public Club getClubById(Long id) { return clubMapper.selectById(id); }
 
     @Override
-    public void saveClub(Club c) { clubMapper.insert(c); }
+    @Transactional
+    public void saveClub(Club c) { 
+        c.setStatus(0); // 待审核
+        c.setMemberCount(0);
+        clubMapper.insert(c);
+        // 自动添加创建者为社长
+        if (c.getPresidentId() != null) {
+            ClubMember m = new ClubMember();
+            m.setClubId(c.getId());
+            m.setUserId(c.getPresidentId());
+            m.setRole("president");
+            m.setStatus(1); // 社长自动通过
+            m.setApplyTime(LocalDateTime.now());
+            memberMapper.insert(m);
+        }
+    }
 
     @Override
     public void updateClub(Long id, Club c) { c.setId(id); clubMapper.updateById(c); }
+
+    @Override
+    @Transactional
+    public void approveClub(Long clubId, Integer status) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        club.setStatus(status);
+        clubMapper.updateById(club);
+    }
 
     @Override
     public ClubMember applyMember(Long clubId, Long userId, String reason) {

@@ -21,6 +21,7 @@ const routes = [
       { path: 'life/card', name: 'CardRecharge', component: () => import('@/views/life/CardRecharge.vue') },
       { path: 'life/lost-found', name: 'LostFound', component: () => import('@/views/life/LostFound.vue') },
       { path: 'club/list', name: 'ClubList', component: () => import('@/views/club/ClubList.vue') },
+      { path: 'club/space/:id', name: 'ClubSpace', component: () => import('@/views/club/ClubSpace.vue') },
       { path: 'club/activity', name: 'ActivityList', component: () => import('@/views/club/ActivityList.vue') },
       { path: 'club/venue', name: 'VenueBooking', component: () => import('@/views/club/VenueBooking.vue') },
       { path: 'growth/profile', name: 'StudentProfile', component: () => import('@/views/growth/StudentProfile.vue') },
