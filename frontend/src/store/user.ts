@@ -19,7 +19,7 @@ export const useUserStore = defineStore('user', () => {
     if (!token.value) return
     const res = await getCurrentUser()
     userInfo.value = res.data
-    role.value = res.data.roleName || userInfo.value.roleName
+    if (res.data.roleName) role.value = res.data.roleName
   }
 
   function logout() {
