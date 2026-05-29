@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: dev
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+jwt:
+  secret: intelligent-campus-jwt-secret-key-2026-0529
+  expiration: 7200000
+
+deepseek:
+  api-key: ${DEEPSEEK_API_KEY:sk-placeholder}
+  api-url: https://api.deepseek.com/chat/completions
+  model: deepseek-chat
