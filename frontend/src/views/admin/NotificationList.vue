@@ -35,6 +35,6 @@ const dialogVisible = ref(false)
 const form = reactive({ title: '', content: '', category: 'general', isTop: false })
 async function fetch() { loading.value = true; const r = await getNotifications({ page: page.value, size: 10 }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
 function viewDetail(row: any) { ElMessage.info(row.title) }
-async function submit() { await addNotification(form); ElMessage.success('发布成功'); dialogVisible.value = false; fetch(); Object.assign(form, { title: '', content: '', category: 'general', isTop: false }) }
+async function submit() { await addNotification({...form, isTop: form.isTop ? 1 : 0}); ElMessage.success('发布成功'); dialogVisible.value = false; fetch(); Object.assign(form, { title: '', content: '', category: 'general', isTop: false }) }
 onMounted(fetch)
 </script>

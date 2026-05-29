@@ -53,7 +53,7 @@ async function send(text: string) {
   const token = localStorage.getItem('token')
   const params = new URLSearchParams({ question: text })
   if (conversationId.value) params.append('conversationId', String(conversationId.value))
-  const response = await fetch(`/api/ai/chat?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+  const response = await fetch(`/api/ai/chat?${params}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
   const reader = response.body?.getReader()
   const decoder = new TextDecoder()
   if (!reader) return

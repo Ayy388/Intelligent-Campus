@@ -31,6 +31,8 @@ public class DeepSeekService {
 
     public SseEmitter chat(Long userId, Long conversationId, String question) {
         SseEmitter emitter = new SseEmitter(300000L);
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(throwable -> {});
 
         AiConversation conv;
         if (conversationId == null) {
@@ -76,6 +78,13 @@ public class DeepSeekService {
                     os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
                 }
 
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) {
+                    String errorMsg = readStream(conn.getErrorStream());
+                    sendError(emitter, "DeepSeek API错误(" + responseCode + "): " + errorMsg);
+                    return;
+                }
+
                 StringBuilder fullResponse = new StringBuilder();
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
@@ -112,14 +121,20 @@ public class DeepSeekService {
                 emitter.send(SseEmitter.event().name("done").data(finalConvId));
                 emitter.complete();
             } catch (Exception e) {
-                try {
-                    emitter.send(SseEmitter.event().name("error").data("AI服务暂时不可用: " + e.getMessage()));
-                    emitter.complete();
-                } catch (Exception ex) { emitter.completeWithError(ex); }
+                sendError(emitter, "AI服务异常: " + e.getMessage());
             }
         }).start();
 
         return emitter;
+    }
+
+    private void sendError(SseEmitter emitter, String message) {
+        try {
+            emitter.send(SseEmitter.event().name("error").data(message));
+        } catch (Exception ignored) {}
+        try {
+            emitter.complete();
+        } catch (Exception ignored) {}
     }
 
     private List<Map<String, String>> buildHistory(Long conversationId) {
@@ -132,5 +147,15 @@ public class DeepSeekService {
             history.add(Map.of("role", msg.getRole(), "content", msg.getContent()));
         }
         return history;
+    }
+
+    private String readStream(java.io.InputStream is) {
+        if (is == null) return "";
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+        } catch (Exception e) { return e.getMessage(); }
+        return sb.toString();
     }
 }
