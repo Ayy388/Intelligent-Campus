@@ -39,6 +39,25 @@
           <el-menu-item index="/admin/guides">办事指南</el-menu-item>
         </el-sub-menu>
 
+        <el-sub-menu index="life">
+          <template #title>
+            <el-icon><DishDot /></el-icon>
+            <span>校园生活</span>
+          </template>
+          <el-menu-item index="/life/canteen">食堂点评</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'student'" index="/life/card">校园卡充值</el-menu-item>
+          <el-menu-item index="/life/lost-found">失物招领</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="message">
+          <template #title>
+            <el-icon><Message /></el-icon>
+            <span>师生沟通</span>
+          </template>
+          <el-menu-item index="/message/chat">即时消息</el-menu-item>
+          <el-menu-item v-if="userStore.role !== 'student'" index="/message/announcement">公告推送</el-menu-item>
+        </el-sub-menu>
+
         <el-menu-item index="/ai/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span>AI 助手</span>
