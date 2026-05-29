@@ -1,14 +1,32 @@
 <template>
-  <div class="header-content">
-    <div class="left">
-      <el-icon class="collapse-btn" @click="appStore.toggleSidebar()"><Fold /></el-icon>
+  <div class="flex items-center justify-between w-full h-full">
+    <div class="flex items-center gap-3">
+      <button
+        class="w-8 h-8 flex items-center justify-center rounded-lg text-ash hover:text-ink hover:bg-wash transition-all duration-200"
+        @click="appStore.toggleSidebar()"
+      >
+        <el-icon :size="18"><Fold /></el-icon>
+      </button>
     </div>
-    <div class="right">
-      <el-dropdown>
-        <span class="user-info">{{ userStore.userInfo?.realName || '用户' }} <el-icon><ArrowDown /></el-icon></span>
+    <div class="flex items-center gap-4">
+      <el-dropdown trigger="click">
+        <div class="flex items-center gap-2 cursor-pointer group">
+          <div class="w-8 h-8 rounded-full bg-ink flex items-center justify-center text-white text-xs font-semibold transition-shadow duration-200 group-hover:shadow-md">
+            {{ (userStore.userInfo?.realName || 'U')[0] }}
+          </div>
+          <span class="text-sm text-ink font-medium hidden sm:block">
+            {{ userStore.userInfo?.realName || '用户' }}
+          </span>
+          <el-icon class="text-mist text-xs"><ArrowDown /></el-icon>
+        </div>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
+            <el-dropdown-item>
+              <div class="text-ash text-xs">{{ userStore.role === 'admin' ? '管理员' : userStore.role === 'teacher' ? '教师' : '学生' }}</div>
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="logout">
+              <span class="text-ink">退出登录</span>
+            </el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
@@ -25,9 +43,3 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 function logout() { userStore.logout(); router.push('/login') }
 </script>
-
-<style scoped>
-.header-content { display: flex; justify-content: space-between; align-items: center; height: 100%; }
-.collapse-btn { font-size: 20px; cursor: pointer; }
-.user-info { cursor: pointer; display: flex; align-items: center; gap: 4px; }
-</style>
