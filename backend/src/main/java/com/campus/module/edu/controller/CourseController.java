@@ -85,4 +85,12 @@ public class CourseController {
     public Result<List<Grade>> courseGrades(@PathVariable Long courseId) {
         return Result.ok(courseService.getCourseGrades(courseId));
     }
+
+    @GetMapping("/schedule")
+    public Result<List<Course>> schedule(Authentication auth) {
+        Claims claims = (Claims) auth.getDetails();
+        Long userId = Long.parseLong(claims.getSubject());
+        String role = claims.get("role", String.class);
+        return Result.ok(courseService.getMySchedule(userId, role));
+    }
 }

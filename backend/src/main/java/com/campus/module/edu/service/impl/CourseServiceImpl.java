@@ -126,4 +126,37 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public List<Grade> getCourseGrades(Long courseId) {
         return gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getCourseId, courseId));
     }
+
+    @Override
+    public List<Course> getMySchedule(Long userId, String role) {
+        if ("student".equals(role)) {
+            List<CourseSelection> selections = selMapper.selectList(
+                new LambdaQueryWrapper<CourseSelection>()
+                    .eq(CourseSelection::getStudentId, userId)
+                    .eq(CourseSelection::getStatus, 1));
+            List<Long> courseIds = selections.stream()
+                .map(CourseSelection::getCourseId)
+                .collect(java.util.stream.Collectors.toList());
+            if (courseIds.isEmpty()) return List.of();
+            List<Course> courses = courseMapper.selectList(
+                new LambdaQueryWrapper<Course>().in(Course::getId, courseIds));
+            for (Course c : courses) {
+                if (c.getTeacherId() != null) {
+                    var teacher = userMapper.selectById(c.getTeacherId());
+                    if (teacher != null) c.setTeacherName(teacher.getRealName());
+                }
+            }
+            return courses;
+        } else {
+            List<Course> courses = courseMapper.selectList(
+                new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, userId));
+            for (Course c : courses) {
+                if (c.getTeacherId() != null) {
+                    var teacher = userMapper.selectById(c.getTeacherId());
+                    if (teacher != null) c.setTeacherName(teacher.getRealName());
+                }
+            }
+            return courses;
+        }
+    }
 }

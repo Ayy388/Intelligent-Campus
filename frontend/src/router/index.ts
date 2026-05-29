@@ -10,6 +10,7 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/dashboard/DashboardView.vue') },
       { path: 'edu/courses', name: 'CourseList', component: () => import('@/views/edu/CourseList.vue') },
+      { path: 'edu/schedule', name: 'Schedule', component: () => import('@/views/edu/ScheduleView.vue') },
       { path: 'edu/selection', name: 'CourseSelection', component: () => import('@/views/edu/CourseSelection.vue') },
       { path: 'edu/grades', name: 'GradeQuery', component: () => import('@/views/edu/GradeQuery.vue') },
       { path: 'edu/grade-entry', name: 'GradeEntry', component: () => import('@/views/edu/GradeEntry.vue') },

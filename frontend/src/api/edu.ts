@@ -39,3 +39,7 @@ export function getMyGrades() {
 export function inputGrade(data: any) {
   return request.post('/edu/grades', data)
 }
+
+export function getSchedule() {
+  return request.get('/edu/schedule')
+}

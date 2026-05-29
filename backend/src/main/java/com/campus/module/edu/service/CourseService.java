@@ -15,4 +15,5 @@ public interface CourseService extends IService<Course> {
     void inputGrade(Grade grade);
     List<Grade> getStudentGrades(Long studentId);
     List<Grade> getCourseGrades(Long courseId);
+    List<Course> getMySchedule(Long userId, String role);
 }
