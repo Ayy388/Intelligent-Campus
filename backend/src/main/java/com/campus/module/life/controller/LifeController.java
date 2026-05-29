@@ -78,6 +78,27 @@ public class LifeController {
         return Result.ok();
     }
 
+    @DeleteMapping("/canteen-reviews/{id}")
+    public Result<Void> deleteReview(@PathVariable Long id, Authentication auth) {
+        lifeService.deleteReview(id, getUserId(auth));
+        return Result.ok();
+    }
+
+    @PostMapping("/canteens")
+    public Result<Void> addCanteen(@RequestBody Canteen c) { lifeService.saveCanteen(c); return Result.ok(); }
+
+    @PutMapping("/canteens/{id}")
+    public Result<Void> updateCanteen(@PathVariable Long id, @RequestBody Canteen c) { lifeService.updateCanteen(id, c); return Result.ok(); }
+
+    @DeleteMapping("/canteens/{id}")
+    public Result<Void> deleteCanteen(@PathVariable Long id) { lifeService.deleteCanteen(id); return Result.ok(); }
+
+    @DeleteMapping("/lost-found/{id}")
+    public Result<Void> deleteLostFound(@PathVariable Long id, Authentication auth) {
+        lifeService.deleteLostFound(id, getUserId(auth));
+        return Result.ok();
+    }
+
     private <T> Result<PageResult<T>> toPage(Page<T> p) {
         PageResult<T> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());

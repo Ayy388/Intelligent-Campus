@@ -13,4 +13,6 @@ public interface GrowthService {
     CheckInRecord doCheckIn(Long checkinId, Long studentId);
     java.util.List<CheckInRecord> getCheckInRecords(Long checkinId);
     boolean getCheckInStatus(Long checkinId, Long studentId);
+    StudentProfile getProfileByStudentId(Long studentId);
+    void deleteCheckIn(Long id);
 }

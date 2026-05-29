@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -29,11 +30,15 @@ public class GrowthServiceImpl implements GrowthService {
 
     @Override
     public void saveOrUpdateProfile(StudentProfile p) {
-        StudentProfile existing = getProfile(p.getStudentId());
+        StudentProfile existing = profileMapper.selectOne(
+            new LambdaQueryWrapper<StudentProfile>().eq(StudentProfile::getStudentId, p.getStudentId()));
         if (existing != null) {
             p.setId(existing.getId());
+            p.setEvaluation(existing.getEvaluation());
+            p.setUpdateTime(LocalDateTime.now());
             profileMapper.updateById(p);
         } else {
+            p.setUpdateTime(LocalDateTime.now());
             profileMapper.insert(p);
         }
     }
@@ -73,6 +78,11 @@ public class GrowthServiceImpl implements GrowthService {
         CheckIn checkin = checkinMapper.selectById(checkinId);
         if (checkin == null) throw new BusinessException("签到不存在");
         if (checkin.getStatus() != 1) throw new BusinessException("签到已结束");
+        LocalDateTime now = LocalDateTime.now();
+        if (checkin.getStartTime() != null && now.isBefore(checkin.getStartTime()))
+            throw new BusinessException("签到尚未开始");
+        if (checkin.getEndTime() != null && now.isAfter(checkin.getEndTime()))
+            throw new BusinessException("签到已截止");
 
         Long cnt = recordMapper.selectCount(new LambdaQueryWrapper<CheckInRecord>()
             .eq(CheckInRecord::getCheckinId, checkinId).eq(CheckInRecord::getStudentId, studentId));
@@ -81,6 +91,7 @@ public class GrowthServiceImpl implements GrowthService {
         CheckInRecord record = new CheckInRecord();
         record.setCheckinId(checkinId);
         record.setStudentId(studentId);
+        record.setCheckinTime(LocalDateTime.now());
         recordMapper.insert(record);
 
         checkin.setCheckedCount((checkin.getCheckedCount() != null ? checkin.getCheckedCount() : 0) + 1);
@@ -100,4 +111,13 @@ public class GrowthServiceImpl implements GrowthService {
             .eq(CheckInRecord::getCheckinId, checkinId)
             .eq(CheckInRecord::getStudentId, studentId)) > 0;
     }
+
+    @Override
+    public StudentProfile getProfileByStudentId(Long studentId) {
+        return profileMapper.selectOne(
+            new LambdaQueryWrapper<StudentProfile>().eq(StudentProfile::getStudentId, studentId));
+    }
+
+    @Override
+    public void deleteCheckIn(Long id) { checkinMapper.deleteById(id); }
 }

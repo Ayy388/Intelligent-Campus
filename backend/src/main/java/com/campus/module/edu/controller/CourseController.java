@@ -80,4 +80,9 @@ public class CourseController {
         courseService.inputGrade(grade);
         return Result.ok();
     }
+
+    @GetMapping("/grades/course/{courseId}")
+    public Result<List<Grade>> courseGrades(@PathVariable Long courseId) {
+        return Result.ok(courseService.getCourseGrades(courseId));
+    }
 }

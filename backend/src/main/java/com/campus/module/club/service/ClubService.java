@@ -23,4 +23,10 @@ public interface ClubService {
     Page<VenueBooking> pageBookings(Long userId, String role, int page, int size);
     void applyBooking(VenueBooking b);
     void approveBooking(Long id, Long approverId, Integer status, String reason);
+    void deleteClub(Long id);
+    void deleteActivity(Long id);
+    void cancelEnroll(Long id, Long userId);
+    void saveVenue(Venue v);
+    void updateVenue(Long id, Venue v);
+    void deleteVenue(Long id);
 }

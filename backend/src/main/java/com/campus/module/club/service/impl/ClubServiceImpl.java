@@ -44,6 +44,9 @@ public class ClubServiceImpl implements ClubService {
         if (cnt > 0) throw new BusinessException("已申请，请等待审批");
         ClubMember m = new ClubMember();
         m.setClubId(clubId); m.setUserId(userId); m.setApplyReason(reason);
+        m.setRole("member");
+        m.setApplyTime(LocalDateTime.now());
+        m.setStatus(0);
         memberMapper.insert(m);
         return m;
     }
@@ -87,15 +90,19 @@ public class ClubServiceImpl implements ClubService {
     public ActivityEnrollment enroll(Long activityId, Long userId) {
         Activity activity = activityMapper.selectById(activityId);
         if (activity == null) throw new BusinessException("活动不存在");
-        if (activity.getMaxEnroll() > 0 && activity.getEnrolled() >= activity.getMaxEnroll())
+        Integer max = activity.getMaxEnroll();
+        Integer enr = activity.getEnrolled();
+        if (max != null && max > 0 && enr != null && enr >= max)
             throw new BusinessException("报名已满");
         Long cnt = enrollmentMapper.selectCount(new LambdaQueryWrapper<ActivityEnrollment>()
             .eq(ActivityEnrollment::getActivityId, activityId).eq(ActivityEnrollment::getUserId, userId));
         if (cnt > 0) throw new BusinessException("已报名");
         ActivityEnrollment e = new ActivityEnrollment();
         e.setActivityId(activityId); e.setUserId(userId);
+        e.setStatus(1);
+        e.setEnrollTime(LocalDateTime.now());
         enrollmentMapper.insert(e);
-        activity.setEnrolled(activity.getEnrolled() + 1);
+        activity.setEnrolled((enr != null ? enr : 0) + 1);
         activityMapper.updateById(activity);
         return e;
     }
@@ -125,7 +132,8 @@ public class ClubServiceImpl implements ClubService {
     public Page<VenueBooking> pageBookings(Long userId, String role, int page, int size) {
         LambdaQueryWrapper<VenueBooking> w = new LambdaQueryWrapper<>();
         if ("student".equals(role)) w.eq(VenueBooking::getUserId, userId);
-        else if ("teacher".equals(role)) w.eq(VenueBooking::getApproverId, userId).or().isNull(VenueBooking::getApproverId);
+        else if ("teacher".equals(role) || "admin".equals(role))
+            w.and(w2 -> w2.eq(VenueBooking::getApproverId, userId).or().isNull(VenueBooking::getApproverId));
         w.orderByDesc(VenueBooking::getApplyTime);
         return bookingMapper.selectPage(new Page<>(page, size), w);
     }
@@ -143,4 +151,26 @@ public class ClubServiceImpl implements ClubService {
         b.setApproveTime(LocalDateTime.now());
         bookingMapper.updateById(b);
     }
+
+    @Override
+    public void deleteClub(Long id) { clubMapper.deleteById(id); }
+
+    @Override
+    public void deleteActivity(Long id) { activityMapper.deleteById(id); }
+
+    @Override
+    public void cancelEnroll(Long id, Long userId) {
+        ActivityEnrollment e = enrollmentMapper.selectById(id);
+        if (e == null || !e.getUserId().equals(userId)) throw new BusinessException("无权取消");
+        enrollmentMapper.deleteById(id);
+    }
+
+    @Override
+    public void saveVenue(Venue v) { venueMapper.insert(v); }
+
+    @Override
+    public void updateVenue(Long id, Venue v) { v.setId(id); venueMapper.updateById(v); }
+
+    @Override
+    public void deleteVenue(Long id) { venueMapper.deleteById(id); }
 }

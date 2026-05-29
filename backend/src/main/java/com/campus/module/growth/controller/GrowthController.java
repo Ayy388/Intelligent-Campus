@@ -72,6 +72,14 @@ public class GrowthController {
         return Result.ok(Map.of("checked", growthService.getCheckInStatus(id, getUserId(auth))));
     }
 
+    @GetMapping("/profile/{studentId}")
+    public Result<StudentProfile> studentProfile(@PathVariable Long studentId) {
+        return Result.ok(growthService.getProfileByStudentId(studentId));
+    }
+
+    @DeleteMapping("/checkin/{id}")
+    public Result<Void> deleteCheckIn(@PathVariable Long id) { growthService.deleteCheckIn(id); return Result.ok(); }
+
     private <T> Result<PageResult<T>> toPage(Page<T> p) {
         PageResult<T> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());

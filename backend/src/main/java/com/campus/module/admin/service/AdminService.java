@@ -14,6 +14,8 @@ public interface AdminService {
     Page<LeaveApplication> pageLeaves(Long userId, String role, int page, int size);
     void applyLeave(LeaveApplication leave);
     void approveLeave(Long id, Long teacherId, Integer status, String reason);
+    LeaveApplication getLeaveById(Long id);
+    void cancelLeave(Long id, Long userId);
 
     Page<Guide> pageGuides(int page, int size, String category);
     Guide getGuideById(Long id);

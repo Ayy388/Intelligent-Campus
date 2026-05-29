@@ -14,4 +14,9 @@ public interface LifeService {
     Page<LostFound> pageLostFound(String keyword, Integer type, int page, int size);
     void addLostFound(LostFound lf);
     void updateLostFoundStatus(Long id, Integer status);
+    void deleteReview(Long id, Long userId);
+    void saveCanteen(Canteen c);
+    void updateCanteen(Long id, Canteen c);
+    void deleteCanteen(Long id);
+    void deleteLostFound(Long id, Long userId);
 }

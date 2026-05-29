@@ -99,6 +99,26 @@ public class ClubController {
         return Result.ok();
     }
 
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteClub(@PathVariable Long id) { clubService.deleteClub(id); return Result.ok(); }
+
+    @DeleteMapping("/activity/{id}")
+    public Result<Void> deleteActivity(@PathVariable Long id) { clubService.deleteActivity(id); return Result.ok(); }
+
+    @DeleteMapping("/activity/enroll/{id}")
+    public Result<Void> cancelEnroll(@PathVariable Long id, Authentication auth) {
+        clubService.cancelEnroll(id, getUserId(auth)); return Result.ok();
+    }
+
+    @PostMapping("/venue/add")
+    public Result<Void> addVenue(@RequestBody Venue v) { clubService.saveVenue(v); return Result.ok(); }
+
+    @PutMapping("/venue/{id}")
+    public Result<Void> updateVenue(@PathVariable Long id, @RequestBody Venue v) { clubService.updateVenue(id, v); return Result.ok(); }
+
+    @DeleteMapping("/venue/{id}")
+    public Result<Void> deleteVenue(@PathVariable Long id) { clubService.deleteVenue(id); return Result.ok(); }
+
     private <T> Result<PageResult<T>> toPage(Page<T> p) {
         PageResult<T> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());

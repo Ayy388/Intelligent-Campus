@@ -22,6 +22,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final CourseMapper courseMapper;
     private final CourseSelectionMapper selMapper;
     private final GradeMapper gradeMapper;
+    private final com.campus.module.sys.mapper.SysUserMapper userMapper;
 
     @Override
     public Page<Course> pageWithTeacher(int page, int size, String keyword, String semester) {
@@ -31,7 +32,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (semester != null && !semester.isEmpty())
             w.eq(Course::getSemester, semester);
         w.orderByDesc(Course::getCreateTime);
-        return courseMapper.selectPage(new Page<>(page, size), w);
+        Page<Course> result = courseMapper.selectPage(new Page<>(page, size), w);
+        for (Course c : result.getRecords()) {
+            if (c.getTeacherId() != null) {
+                com.campus.module.sys.entity.SysUser teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -40,7 +48,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
         if (course.getStatus() != 1) throw new BusinessException("该课程不开放选课");
-        if (course.getEnrolled() >= course.getCapacity()) throw new BusinessException("已满员");
+        int updated = courseMapper.updateEnrolled(courseId);
+        if (updated == 0) throw new BusinessException("已满员");
         Long cnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getStudentId, studentId)
                 .eq(CourseSelection::getCourseId, courseId)
@@ -51,8 +60,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         sel.setStudentId(studentId); sel.setCourseId(courseId);
         sel.setSemester(semester); sel.setStatus(1);
         selMapper.insert(sel);
-        course.setEnrolled(course.getEnrolled() + 1);
-        courseMapper.updateById(course);
         return sel;
     }
 
@@ -79,7 +86,21 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
-    public void inputGrade(Grade grade) { gradeMapper.insert(grade); }
+    public void inputGrade(Grade grade) {
+        if (grade.getScore() == null) throw new BusinessException("成绩不能为空");
+        Course course = courseMapper.selectById(grade.getCourseId());
+        if (course == null) throw new BusinessException("课程不存在");
+        Long cnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
+                .eq(CourseSelection::getStudentId, grade.getStudentId())
+                .eq(CourseSelection::getCourseId, grade.getCourseId())
+                .eq(CourseSelection::getStatus, 1));
+        if (cnt == 0) throw new BusinessException("该学生未选修此课程");
+        Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
+                .eq(Grade::getStudentId, grade.getStudentId())
+                .eq(Grade::getCourseId, grade.getCourseId()));
+        if (existCount > 0) throw new BusinessException("该学生成绩已录入");
+        gradeMapper.insert(grade);
+    }
 
     @Override
     public List<Grade> getStudentGrades(Long studentId) {

@@ -3,7 +3,9 @@ package com.campus.module.sys.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.common.PageResult;
 import com.campus.common.Result;
+import com.campus.module.sys.entity.SysRole;
 import com.campus.module.sys.entity.SysUser;
+import com.campus.module.sys.mapper.SysRoleMapper;
 import com.campus.module.sys.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class SysManageController {
     private final SysUserService userService;
+    private final SysRoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/users")
@@ -53,6 +56,22 @@ public class SysManageController {
     public Result<Void> toggleStatus(@PathVariable Long id, @RequestParam Integer status) {
         SysUser u = new SysUser(); u.setId(id); u.setStatus(status);
         userService.updateById(u);
+        return Result.ok();
+    }
+
+    @GetMapping("/users/{id}")
+    public Result<SysUser> getUser(@PathVariable Long id) {
+        SysUser user = userService.getById(id);
+        if (user != null) {
+            SysRole role = roleMapper.selectById(user.getRoleId());
+            if (role != null) user.setRoleName(role.getRoleName());
+        }
+        return Result.ok(user);
+    }
+
+    @DeleteMapping("/users/{id}")
+    public Result<Void> deleteUser(@PathVariable Long id) {
+        userService.removeById(id);
         return Result.ok();
     }
 }

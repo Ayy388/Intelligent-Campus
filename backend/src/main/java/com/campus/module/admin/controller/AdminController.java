@@ -106,6 +106,18 @@ public class AdminController {
         return Result.ok();
     }
 
+    @GetMapping("/leaves/{id}")
+    public Result<LeaveApplication> getLeave(@PathVariable Long id) {
+        return Result.ok(adminService.getLeaveById(id));
+    }
+
+    @DeleteMapping("/leaves/{id}")
+    public Result<Void> cancelLeave(@PathVariable Long id, Authentication auth) {
+        Long userId = getUserId(auth);
+        adminService.cancelLeave(id, userId);
+        return Result.ok();
+    }
+
     private <T> Result<PageResult<T>> toPageResult(Page<T> p) {
         PageResult<T> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());

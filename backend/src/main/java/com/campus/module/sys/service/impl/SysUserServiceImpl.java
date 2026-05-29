@@ -49,6 +49,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (keyword != null && !keyword.isEmpty()) {
             w.like(SysUser::getRealName, keyword).or().like(SysUser::getUsername, keyword);
         }
-        return userMapper.selectPage(new Page<>(page, size), w);
+        Page<SysUser> result = userMapper.selectPage(new Page<>(page, size), w);
+        for (SysUser u : result.getRecords()) {
+            SysRole role = roleMapper.selectById(u.getRoleId());
+            if (role != null) u.setRoleName(role.getRoleName());
+        }
+        return result;
     }
 }

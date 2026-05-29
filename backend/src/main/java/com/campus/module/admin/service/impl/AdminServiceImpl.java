@@ -50,17 +50,38 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
-    public void applyLeave(LeaveApplication leave) { leaveMapper.insert(leave); }
+    public void applyLeave(LeaveApplication leave) {
+        leave.setStatus(0);
+        leave.setApplyTime(LocalDateTime.now());
+        leaveMapper.insert(leave);
+    }
 
     @Override
     public void approveLeave(Long id, Long teacherId, Integer status, String reason) {
         LeaveApplication leave = leaveMapper.selectById(id);
         if (leave == null) throw new BusinessException("请假记录不存在");
+        if (leave.getStatus() != 0) throw new BusinessException("该请假申请已被处理");
         leave.setTeacherId(teacherId);
         leave.setStatus(status);
         leave.setRejectReason(reason);
         leave.setApproveTime(LocalDateTime.now());
         leaveMapper.updateById(leave);
+    }
+
+    @Override
+    public LeaveApplication getLeaveById(Long id) {
+        LeaveApplication leave = leaveMapper.selectById(id);
+        if (leave == null) throw new BusinessException("请假记录不存在");
+        return leave;
+    }
+
+    @Override
+    public void cancelLeave(Long id, Long userId) {
+        LeaveApplication leave = leaveMapper.selectById(id);
+        if (leave == null || !leave.getStudentId().equals(userId))
+            throw new BusinessException("请假记录不存在或无权操作");
+        if (leave.getStatus() != 0) throw new BusinessException("已审批的申请无法取消");
+        leaveMapper.deleteById(id);
     }
 
     @Override

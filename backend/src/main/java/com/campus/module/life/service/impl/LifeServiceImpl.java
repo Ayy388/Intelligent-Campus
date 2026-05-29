@@ -8,6 +8,7 @@ import com.campus.module.life.mapper.*;
 import com.campus.module.life.service.LifeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -46,7 +47,10 @@ public class LifeServiceImpl implements LifeService {
     }
 
     @Override
+    @Transactional
     public void recharge(CardRecharge recharge) {
+        if (recharge.getAmount() == null || recharge.getAmount().compareTo(BigDecimal.ZERO) <= 0)
+            throw new BusinessException("充值金额必须大于0");
         BigDecimal balance = BigDecimal.ZERO;
         Page<CardRecharge> last = pageRecharges(recharge.getUserId(), 1, 1);
         if (!last.getRecords().isEmpty()) {
@@ -74,5 +78,30 @@ public class LifeServiceImpl implements LifeService {
         if (lf == null) throw new BusinessException("记录不存在");
         lf.setStatus(status);
         lostFoundMapper.updateById(lf);
+    }
+
+    @Override
+    public void deleteReview(Long id, Long userId) {
+        CanteenReview review = reviewMapper.selectById(id);
+        if (review == null || !review.getUserId().equals(userId))
+            throw new BusinessException("无权删除");
+        reviewMapper.deleteById(id);
+    }
+
+    @Override
+    public void saveCanteen(Canteen c) { canteenMapper.insert(c); }
+
+    @Override
+    public void updateCanteen(Long id, Canteen c) { c.setId(id); canteenMapper.updateById(c); }
+
+    @Override
+    public void deleteCanteen(Long id) { canteenMapper.deleteById(id); }
+
+    @Override
+    public void deleteLostFound(Long id, Long userId) {
+        LostFound lf = lostFoundMapper.selectById(id);
+        if (lf == null || !lf.getUserId().equals(userId))
+            throw new BusinessException("无权删除");
+        lostFoundMapper.deleteById(id);
     }
 }
