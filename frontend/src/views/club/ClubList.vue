@@ -59,8 +59,14 @@
       </div>
 
       <div v-if="userStore.role==='student' && detailClub?.status===1" class="mb-4">
-        <button :disabled="myMemberStatus" @click="startApply(detailClub?.id)" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-          {{ myMemberStatus ? '已申请/已加入' : '申请加入' }}
+        <button v-if="!myMemberInfo" @click="startApply(detailClub?.id)" class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">
+          申请加入
+        </button>
+        <button v-else-if="myMemberInfo.status===0" disabled class="px-4 py-1.5 bg-ink/50 text-white rounded-lg text-xs font-medium cursor-not-allowed">
+          申请中
+        </button>
+        <button v-else disabled class="px-4 py-1.5 bg-ink/50 text-white rounded-lg text-xs font-medium cursor-not-allowed">
+          已加入
         </button>
       </div>
 
@@ -156,7 +162,7 @@ const pageSize = 12
 const detailVisible = ref(false)
 const detailClub = ref<any>(null)
 const members = ref<any[]>([])
-const myMemberStatus = ref(false)
+const myMemberInfo = ref<any>(null)
 
 const createVisible = ref(false)
 const createForm = reactive({ name: '', description: '' })
@@ -190,7 +196,7 @@ async function fetchMembers(clubId: number) {
   try {
     const r = await getMembers(clubId)
     members.value = r.data || []
-    myMemberStatus.value = members.value.some((m: any) => m.userId === userStore.userInfo?.id)
+    myMemberInfo.value = members.value.find((m: any) => m.userId === userStore.userInfo?.id)
   } catch { members.value = [] }
 }
 

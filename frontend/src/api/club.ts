@@ -8,6 +8,9 @@ export function deleteClub(id: number) { return request.delete(`/club/${id}`) }
 export function approveClub(id: number, status: number) {
   return request.put(`/club/${id}/approve`, null, { params: { status } })
 }
+export function leaveClub(clubId: number) {
+  return request.delete(`/club/member/${clubId}`)
+}
 
 export function applyMember(clubId: number, reason: string) {
   return request.post('/club/member/apply', null, { params: { clubId, reason } })

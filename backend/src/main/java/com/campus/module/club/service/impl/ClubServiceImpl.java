@@ -105,6 +105,35 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
+    @Transactional
+    public void leaveClub(Long clubId, Long userId) {
+        ClubMember member = memberMapper.selectOne(
+            new LambdaQueryWrapper<ClubMember>()
+                .eq(ClubMember::getClubId, clubId)
+                .eq(ClubMember::getUserId, userId));
+        if (member == null) {
+            throw new BusinessException("未找到社团成员记录");
+        }
+        
+        // 不能退出如果是社长
+        if ("president".equals(member.getRole())) {
+            throw new BusinessException("社长不能退出社团");
+        }
+        
+        // 删除成员记录
+        memberMapper.deleteById(member.getId());
+        
+        // 如果是已通过的成员，更新社团成员数
+        if (member.getStatus() == 1) {
+            Club club = clubMapper.selectById(clubId);
+            if (club != null && club.getMemberCount() != null && club.getMemberCount() > 0) {
+                club.setMemberCount(club.getMemberCount() - 1);
+                clubMapper.updateById(club);
+            }
+        }
+    }
+
+    @Override
     public Page<Activity> pageActivities(Long clubId, int page, int size) {
         LambdaQueryWrapper<Activity> w = new LambdaQueryWrapper<>();
         if (clubId != null) w.eq(Activity::getClubId, clubId);

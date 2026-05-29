@@ -436,12 +436,42 @@ public class DataInitializer implements CommandLineRunner {
         Integer clubCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM club_info", Integer.class);
         if (clubCount != null && clubCount == 0) {
-            jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                "计算机协会", "编程、算法、人工智能兴趣社团", 0, 1);
-            jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                "羽毛球社", "羽毛球运动交流与训练", 0, 1);
-            jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                "摄影社", "摄影技巧分享与外拍活动", 0, 1);
+            // 获取s001用户的ID
+            Long s001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 's001'", Long.class);
+            if (s001Id != null) {
+                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "计算机协会", "编程、算法、人工智能兴趣社团", s001Id, 1, 1);
+                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "羽毛球社", "羽毛球运动交流与训练", s001Id, 1, 1);
+                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "摄影社", "摄影技巧分享与外拍活动", s001Id, 1, 1);
+                
+                // 获取刚插入的社团ID并添加社长成员
+                Long club1Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '计算机协会'", Long.class);
+                Long club2Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '羽毛球社'", Long.class);
+                Long club3Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '摄影社'", Long.class);
+                
+                if (club1Id != null) {
+                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
+                        club1Id, s001Id, "president", 1);
+                }
+                if (club2Id != null) {
+                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
+                        club2Id, s001Id, "president", 1);
+                }
+                if (club3Id != null) {
+                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
+                        club3Id, s001Id, "president", 1);
+                }
+            } else {
+                // 如果找不到s001用户，使用原来的逻辑
+                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
+                    "计算机协会", "编程、算法、人工智能兴趣社团", 0, 1);
+                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
+                    "羽毛球社", "羽毛球运动交流与训练", 0, 1);
+                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
+                    "摄影社", "摄影技巧分享与外拍活动", 0, 1);
+            }
         }
 
         Integer venueCount = jdbcTemplate.queryForObject(

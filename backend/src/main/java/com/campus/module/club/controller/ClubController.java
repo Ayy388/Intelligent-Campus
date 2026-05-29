@@ -41,6 +41,13 @@ public class ClubController {
         return Result.ok();
     }
 
+    @DeleteMapping("/member/{clubId}")
+    public Result<Void> leaveClub(@PathVariable Long clubId, Authentication auth) {
+        Long userId = getUserId(auth);
+        clubService.leaveClub(clubId, userId);
+        return Result.ok();
+    }
+
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }
 

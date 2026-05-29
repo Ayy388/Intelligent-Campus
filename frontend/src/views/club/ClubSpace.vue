@@ -86,6 +86,16 @@
             <div class="text-mist mt-2">
               状态: <span class="text-steel">{{ myMember.status===1?'已通过':'待审核' }}</span>
             </div>
+            <button 
+              v-if="myMember.role !== 'president'" 
+              @click="handleLeave" 
+              class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+            >
+              退出社团
+            </button>
+            <div v-else class="text-xs text-mist mt-4">
+              社长不能退出社团
+            </div>
           </div>
           <div v-else class="text-sm text-mist">
             你还不是该社团成员
@@ -98,13 +108,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { getClub, getMembers, getMyMemberships } from '@/api/club'
+import { useRoute, useRouter } from 'vue-router'
+import { getClub, getMembers, getMyMemberships, leaveClub } from '@/api/club'
 import { useUserStore } from '@/store/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, OfficeBuilding, User, UserFilled, Document } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const route = useRoute()
+const router = useRouter()
 const club = ref<any>(null)
 const members = ref<any[]>([])
 const myMember = ref<any>(null)
@@ -123,6 +135,19 @@ async function fetchData() {
     myMember.value = myMemberships.find((m: any) => m.clubId === parseInt(clubId))
   } catch (e) {
     console.error('获取数据失败', e)
+  }
+}
+
+async function handleLeave() {
+  try {
+    await ElMessageBox.confirm('确定要退出该社团吗？', '提示', { type: 'warning' })
+    await leaveClub(parseInt(route.params.id as string))
+    ElMessage.success('退出成功')
+    router.push('/club/list')
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('退出失败')
+    }
   }
 }
 
