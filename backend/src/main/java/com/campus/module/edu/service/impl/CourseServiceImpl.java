@@ -50,12 +50,16 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (course.getStatus() != 1) throw new BusinessException("该课程不开放选课");
         int updated = courseMapper.updateEnrolled(courseId);
         if (updated == 0) throw new BusinessException("已满员");
-        Long cnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
+        CourseSelection exist = selMapper.selectOne(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getStudentId, studentId)
                 .eq(CourseSelection::getCourseId, courseId)
-                .eq(CourseSelection::getSemester, semester)
-                .eq(CourseSelection::getStatus, 1));
-        if (cnt > 0) throw new BusinessException("已选该课程");
+                .eq(CourseSelection::getSemester, semester));
+        if (exist != null) {
+            if (exist.getStatus() == 1) throw new BusinessException("已选该课程");
+            exist.setStatus(1);
+            selMapper.updateById(exist);
+            return exist;
+        }
         CourseSelection sel = new CourseSelection();
         sel.setStudentId(studentId); sel.setCourseId(courseId);
         sel.setSemester(semester); sel.setStatus(1);
