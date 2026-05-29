@@ -46,9 +46,9 @@ import { ElMessage } from 'element-plus'
 const items = ref<any[]>([])
 const page = ref(1)
 const total = ref(0)
-const curType = ref<number | null>(null)
+const curType = ref<number | undefined>(undefined)
 const dialogVisible = ref(false)
-const types = [{ label: '全部', value: null }, { label: '寻物', value: 0 }, { label: '招领', value: 1 }]
+const types = [{ label: '全部', value: undefined as number | undefined }, { label: '寻物', value: 0 }, { label: '招领', value: 1 }]
 const form = reactive({ type: 0, title: '', description: '', location: '', contact: '' })
 async function fetch() { const r = await getLostFound({ type: curType.value, page: page.value, size: 10 }); items.value = r.data.records; total.value = r.data.total }
 function showDialog() { form.type=0; form.title=''; form.description=''; form.location=''; form.contact=''; dialogVisible.value=true }
