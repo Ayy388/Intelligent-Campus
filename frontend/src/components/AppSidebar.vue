@@ -49,6 +49,25 @@
           <el-menu-item index="/life/lost-found">失物招领</el-menu-item>
         </el-sub-menu>
 
+        <el-sub-menu index="club">
+          <template #title>
+            <el-icon><TrophyBase /></el-icon>
+            <span>社团活动</span>
+          </template>
+          <el-menu-item index="/club/list">社团列表</el-menu-item>
+          <el-menu-item index="/club/activity">活动中心</el-menu-item>
+          <el-menu-item index="/club/venue">场地预约</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="growth">
+          <template #title>
+            <el-icon><TrendCharts /></el-icon>
+            <span>成长档案</span>
+          </template>
+          <el-menu-item v-if="userStore.role==='student'" index="/growth/profile">我的档案</el-menu-item>
+          <el-menu-item index="/growth/checkin">签到打卡</el-menu-item>
+        </el-sub-menu>
+
         <el-sub-menu index="message">
           <template #title>
             <el-icon><Message /></el-icon>
