@@ -33,7 +33,7 @@ public class AuthController {
         user.setPassword(null);
         if (user.getRoleId() != null) {
             SysRole role = roleMapper.selectById(user.getRoleId());
-            if (role != null) user.setRoleName(role.getRoleName());
+            if (role != null) user.setRoleName(role.getRoleCode());
         }
         return Result.ok(user);
     }
