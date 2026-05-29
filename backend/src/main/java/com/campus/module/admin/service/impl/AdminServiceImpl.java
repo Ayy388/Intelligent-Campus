@@ -45,7 +45,8 @@ public class AdminServiceImpl implements AdminService {
     public Page<LeaveApplication> pageLeaves(Long userId, String role, int page, int size) {
         LambdaQueryWrapper<LeaveApplication> w = new LambdaQueryWrapper<>();
         if ("student".equals(role)) w.eq(LeaveApplication::getStudentId, userId);
-        else if ("teacher".equals(role)) w.eq(LeaveApplication::getTeacherId, userId);
+        else if ("teacher".equals(role) || "admin".equals(role))
+            w.and(w2 -> w2.eq(LeaveApplication::getTeacherId, userId).or().isNull(LeaveApplication::getTeacherId));
         w.orderByDesc(LeaveApplication::getApplyTime);
         return leaveMapper.selectPage(new Page<>(page, size), w);
     }

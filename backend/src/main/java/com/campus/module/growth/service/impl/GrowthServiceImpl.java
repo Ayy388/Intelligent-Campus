@@ -63,7 +63,14 @@ public class GrowthServiceImpl implements GrowthService {
         LambdaQueryWrapper<CheckIn> w = new LambdaQueryWrapper<>();
         if (teacherId != null) w.eq(CheckIn::getTeacherId, teacherId);
         w.orderByDesc(CheckIn::getCreateTime);
-        return checkinMapper.selectPage(new Page<>(page, size), w);
+        Page<CheckIn> result = checkinMapper.selectPage(new Page<>(page, size), w);
+        for (CheckIn c : result.getRecords()) {
+            if (c.getTeacherId() != null) {
+                com.campus.module.sys.entity.SysUser teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -101,8 +108,13 @@ public class GrowthServiceImpl implements GrowthService {
 
     @Override
     public List<CheckInRecord> getCheckInRecords(Long checkinId) {
-        return recordMapper.selectList(new LambdaQueryWrapper<CheckInRecord>()
+        List<CheckInRecord> list = recordMapper.selectList(new LambdaQueryWrapper<CheckInRecord>()
             .eq(CheckInRecord::getCheckinId, checkinId));
+        for (CheckInRecord r : list) {
+            com.campus.module.sys.entity.SysUser student = userMapper.selectById(r.getStudentId());
+            if (student != null) r.setStudentName(student.getRealName());
+        }
+        return list;
     }
 
     @Override

@@ -4,21 +4,34 @@
     <el-table :data="tableData" v-loading="loading">
       <el-table-column prop="courseCode" label="编号" width="100" />
       <el-table-column prop="courseName" label="名称" />
+      <el-table-column prop="teacherName" label="授课教师" width="100" />
+      <el-table-column prop="classroom" label="教室" width="120" />
       <el-table-column prop="credit" label="学分" width="60" />
       <el-table-column prop="semester" label="学期" width="100" />
+      <el-table-column label="选课" width="100">
+        <template #default="{row}">{{ row.enrolled || 0 }} / {{ row.capacity || 0 }}</template>
+      </el-table-column>
       <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status===1?'success':row.status===2?'info':'warning'">{{ row.status===1?'可选':row.status===2?'结束':'未开放' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{row}"><el-button size="small" @click="showDialog(row)">编辑</el-button><el-button size="small" type="danger" @click="del(row.id)">删除</el-button></template>
       </el-table-column>
     </el-table>
-    <el-dialog v-model="dialogVisible" :title="editId?'编辑':'添加'" width="500px">
+    <el-dialog v-model="dialogVisible" :title="editId?'编辑':'添加'" width="550px">
       <el-form :model="form">
-        <el-form-item label="编号"><el-input v-model="form.courseCode" /></el-form-item>
-        <el-form-item label="名称"><el-input v-model="form.courseName" /></el-form-item>
+        <el-form-item label="课程编号"><el-input v-model="form.courseCode" placeholder="如 CS101" /></el-form-item>
+        <el-form-item label="课程名称"><el-input v-model="form.courseName" placeholder="如 Java程序设计" /></el-form-item>
+        <el-form-item label="授课教师">
+          <el-select v-model="form.teacherId" placeholder="选择教师" clearable class="w-full">
+            <el-option v-for="t in teachers" :key="t.id" :label="t.realName" :value="t.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="学分"><el-input-number v-model="form.credit" :min="0" :step="0.5" /></el-form-item>
+        <el-form-item label="学时"><el-input-number v-model="form.hours" :min="0" /></el-form-item>
         <el-form-item label="学期"><el-input v-model="form.semester" placeholder="如 2026-春" /></el-form-item>
-        <el-form-item label="教室"><el-input v-model="form.classroom" /></el-form-item>
+        <el-form-item label="教室"><el-input v-model="form.classroom" placeholder="如 教3-201" /></el-form-item>
+        <el-form-item label="上课时间"><el-input v-model="form.schedule" placeholder="如 周一 1-2节" /></el-form-item>
         <el-form-item label="容量"><el-input-number v-model="form.capacity" :min="0" /></el-form-item>
+        <el-form-item label="课程描述"><el-input v-model="form.description" type="textarea" :rows="2" placeholder="课程简介" /></el-form-item>
         <el-form-item label="状态"><el-select v-model="form.status"><el-option :value="0" label="未开放" /><el-option :value="1" label="开放选课" /><el-option :value="2" label="已结束" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
@@ -30,18 +43,22 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getCourses, addCourse, updateCourse, deleteCourse } from '@/api/edu'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
 const tableData = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
-const form = reactive({ courseCode: '', courseName: '', credit: 0, semester: '', classroom: '', capacity: 0, status: 0 })
+const teachers = ref<any[]>([])
+const form = reactive({ courseCode: '', courseName: '', teacherId: null as number | null, credit: 0, hours: 0, semester: '', classroom: '', schedule: '', capacity: 0, description: '', status: 0 })
 async function fetch() { loading.value = true; const r = await getCourses({ page: 1, size: 100 }); tableData.value = r.data.records; loading.value = false }
+async function fetchTeachers() { const r = await request.get('/sys/users', { params: { page: 1, size: 200 } }); teachers.value = (r.data.records || []).filter((u: any) => u.roleName === '教师') }
 function showDialog(row?: any) {
   editId.value = row?.id || null
-  Object.assign(form, row || { courseCode: '', courseName: '', credit: 0, semester: '', classroom: '', capacity: 0, status: 0 })
+  Object.assign(form, row ? { ...row } : { courseCode: '', courseName: '', teacherId: null, credit: 0, hours: 0, semester: '', classroom: '', schedule: '', capacity: 0, description: '', status: 0 })
   dialogVisible.value = true
 }
 async function save() {
+  if (!form.courseCode.trim() || !form.courseName.trim()) { ElMessage.warning('编号和名称不能为空'); return }
   if (editId.value) { await updateCourse(editId.value, form) } else { await addCourse(form) }
   ElMessage.success('保存成功'); dialogVisible.value = false; fetch()
 }
@@ -49,5 +66,5 @@ async function del(id: number) {
   await ElMessageBox.confirm('确认删除?', '提示', { type: 'warning' })
   await deleteCourse(id); ElMessage.success('删除成功'); fetch()
 }
-onMounted(fetch)
+onMounted(() => { fetch(); fetchTeachers() })
 </script>

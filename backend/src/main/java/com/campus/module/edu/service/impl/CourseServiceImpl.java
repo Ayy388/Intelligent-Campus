@@ -80,9 +80,14 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     public List<CourseSelection> getMySelections(Long studentId) {
-        return selMapper.selectList(new LambdaQueryWrapper<CourseSelection>()
+        List<CourseSelection> list = selMapper.selectList(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getStudentId, studentId)
                 .eq(CourseSelection::getStatus, 1));
+        for (CourseSelection s : list) {
+            Course course = courseMapper.selectById(s.getCourseId());
+            if (course != null) s.setCourseName(course.getCourseName());
+        }
+        return list;
     }
 
     @Override
@@ -97,14 +102,20 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (cnt == 0) throw new BusinessException("该学生未选修此课程");
         Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
                 .eq(Grade::getStudentId, grade.getStudentId())
-                .eq(Grade::getCourseId, grade.getCourseId()));
-        if (existCount > 0) throw new BusinessException("该学生成绩已录入");
+                .eq(Grade::getCourseId, grade.getCourseId())
+                .eq(Grade::getSemester, grade.getSemester()));
+        if (existCount > 0) throw new BusinessException("该学生该学期成绩已录入");
         gradeMapper.insert(grade);
     }
 
     @Override
     public List<Grade> getStudentGrades(Long studentId) {
-        return gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
+        List<Grade> grades = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
+        for (Grade g : grades) {
+            Course course = courseMapper.selectById(g.getCourseId());
+            if (course != null) g.setCourseName(course.getCourseName());
+        }
+        return grades;
     }
 
     @Override

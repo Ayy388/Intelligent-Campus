@@ -47,7 +47,7 @@ async function fetchData() {
   loading.value = false
 }
 async function doSelect(course: any) {
-  try { await selectCourse(course.id, '2026-春'); ElMessage.success('选课成功'); fetchData() }
+  try { await selectCourse(course.id, course.semester || '2026-春'); ElMessage.success('选课成功'); fetchData() }
   catch (e: any) { ElMessage.error(e.message) }
 }
 async function doDrop(sel: any) {
