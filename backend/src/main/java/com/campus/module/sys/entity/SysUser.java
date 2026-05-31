@@ -20,8 +20,12 @@ public class SysUser {
     private String email;
     private String avatar;
     private Long roleId;
-    private String department;
+    private Long departmentId;
+    private Long classId;
+    @TableField(exist = false)
     private String className;
+    @TableField(exist = false)
+    private String departmentName;
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

@@ -24,6 +24,10 @@ export function getLeaves(params: any) {
   return request.get('/admin/leaves', { params })
 }
 
+export function getLeave(id: number) {
+  return request.get(`/admin/leaves/${id}`)
+}
+
 export function applyLeave(data: any) {
   return request.post('/admin/leaves', data)
 }

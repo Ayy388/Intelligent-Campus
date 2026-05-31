@@ -6,6 +6,8 @@ import com.campus.common.BusinessException;
 import com.campus.module.admin.entity.*;
 import com.campus.module.admin.mapper.*;
 import com.campus.module.admin.service.AdminService;
+import com.campus.module.sys.entity.SysUser;
+import com.campus.module.sys.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
@@ -16,6 +18,7 @@ public class AdminServiceImpl implements AdminService {
     private final NotificationMapper notiMapper;
     private final LeaveApplicationMapper leaveMapper;
     private final GuideMapper guideMapper;
+    private final SysUserMapper userMapper;
 
     @Override
     public Page<Notification> pageNotifications(int page, int size, String category) {
@@ -48,7 +51,14 @@ public class AdminServiceImpl implements AdminService {
         else if ("teacher".equals(role) || "admin".equals(role))
             w.and(w2 -> w2.eq(LeaveApplication::getTeacherId, userId).or().isNull(LeaveApplication::getTeacherId));
         w.orderByDesc(LeaveApplication::getApplyTime);
-        return leaveMapper.selectPage(new Page<>(page, size), w);
+        Page<LeaveApplication> result = leaveMapper.selectPage(new Page<>(page, size), w);
+        for (LeaveApplication l : result.getRecords()) {
+            if (l.getStudentId() != null) {
+                SysUser student = userMapper.selectById(l.getStudentId());
+                if (student != null) l.setStudentName(student.getRealName());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -74,6 +84,10 @@ public class AdminServiceImpl implements AdminService {
     public LeaveApplication getLeaveById(Long id) {
         LeaveApplication leave = leaveMapper.selectById(id);
         if (leave == null) throw new BusinessException("请假记录不存在");
+        if (leave.getStudentId() != null) {
+            SysUser student = userMapper.selectById(leave.getStudentId());
+            if (student != null) leave.setStudentName(student.getRealName());
+        }
         return leave;
     }
 

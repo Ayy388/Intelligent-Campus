@@ -5,16 +5,25 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.campus.common.BusinessException;
 import com.campus.module.edu.entity.Course;
+import com.campus.module.edu.entity.CourseClass;
 import com.campus.module.edu.entity.CourseSelection;
 import com.campus.module.edu.entity.Grade;
+import com.campus.module.edu.mapper.CourseClassMapper;
 import com.campus.module.edu.mapper.CourseMapper;
 import com.campus.module.edu.mapper.CourseSelectionMapper;
 import com.campus.module.edu.mapper.GradeMapper;
 import com.campus.module.edu.service.CourseService;
+import com.campus.module.sys.entity.SysClass;
+import com.campus.module.sys.entity.SysUser;
+import com.campus.module.sys.mapper.SysClassMapper;
+import com.campus.module.sys.mapper.SysDepartmentMapper;
+import com.campus.module.sys.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -25,6 +34,9 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final GradeMapper gradeMapper;
     private final com.campus.module.sys.mapper.SysUserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final CourseClassMapper courseClassMapper;
+    private final SysClassMapper sysClassMapper;
+    private final SysDepartmentMapper sysDepartmentMapper;
 
     @Override
     @Transactional
@@ -118,9 +130,19 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .eq(CourseSelection::getStatus, 1));
         for (CourseSelection s : list) {
             Course course = courseMapper.selectById(s.getCourseId());
-            if (course != null) s.setCourseName(course.getCourseName());
+            if (course != null) {
+                s.setCourseName(course.getCourseName());
+            }
             com.campus.module.sys.entity.SysUser student = userMapper.selectById(s.getStudentId());
-            if (student != null) s.setStudentName(student.getRealName());
+            if (student != null) {
+                s.setStudentName(student.getRealName());
+                s.setStudentClassName(student.getClassName());
+                if (student.getDepartmentId() != null) {
+                    com.campus.module.sys.entity.SysDepartment dept = sysDepartmentMapper.selectById(student.getDepartmentId());
+                    s.setStudentDepartment(dept != null ? dept.getName() : "");
+                }
+                s.setStudentPhone(student.getPhone());
+            }
         }
         return list;
     }
@@ -128,8 +150,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     public List<Course> getTeacherCourses(Long teacherId) {
         return courseMapper.selectList(new LambdaQueryWrapper<Course>()
-                .eq(Course::getTeacherId, teacherId)
-                .eq(Course::getStatus, 1));
+                .eq(Course::getTeacherId, teacherId));
     }
 
     @Override
@@ -235,5 +256,143 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             }
         }
         return courses;
+    }
+
+    @Override
+    @Transactional
+    public void assignRequiredCourse(Long courseId, List<Long> classIds) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+
+        for (Long classId : classIds) {
+            CourseClass cc = new CourseClass();
+            cc.setCourseId(courseId);
+            cc.setClassId(classId);
+            cc.setIsRequired(1);
+            courseClassMapper.insert(cc);
+
+            List<SysUser> students = userMapper.selectList(
+                new LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getClassId, classId));
+            for (SysUser s : students) {
+                Long cnt = selMapper.selectCount(
+                    new LambdaQueryWrapper<CourseSelection>()
+                        .eq(CourseSelection::getCourseId, courseId)
+                        .eq(CourseSelection::getStudentId, s.getId())
+                        .eq(CourseSelection::getStatus, 1));
+                if (cnt == 0) {
+                    CourseSelection cs = new CourseSelection();
+                    cs.setStudentId(s.getId());
+                    cs.setCourseId(courseId);
+                    cs.setSemester(course.getSemester());
+                    cs.setSelectTime(LocalDateTime.now());
+                    cs.setStatus(1);
+                    cs.setSelectType("auto");
+                    selMapper.insert(cs);
+                    course.setEnrolled((course.getEnrolled() != null ? course.getEnrolled() : 0) + 1);
+                }
+            }
+        }
+        course.setStatus(2);
+        course.setCourseType("required");
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public List<Course> getAvailableCourses(Long studentId) {
+        SysUser student = userMapper.selectById(studentId);
+        if (student == null || student.getClassId() == null) return List.of();
+
+        List<Course> all = courseMapper.selectList(
+            new LambdaQueryWrapper<Course>()
+                .eq(Course::getStatus, 1)
+                .eq(Course::getCourseType, "elective"));
+
+        List<Course> available = new ArrayList<>();
+        for (Course course : all) {
+            List<CourseClass> constraints = courseClassMapper.selectList(
+                new LambdaQueryWrapper<CourseClass>()
+                    .eq(CourseClass::getCourseId, course.getId())
+                    .eq(CourseClass::getIsRequired, 0));
+
+            if (constraints.isEmpty()) {
+                available.add(course);
+                continue;
+            }
+
+            boolean accessible = constraints.stream().anyMatch(cc -> {
+                if (cc.getClassId() == null) return true;
+                return cc.getClassId().equals(student.getClassId());
+            });
+
+            if (accessible) available.add(course);
+        }
+        return available;
+    }
+
+    @Override
+    public void enrollElective(Long courseId, Long studentId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() != 1) throw new BusinessException("该课程不在选课期");
+        if (!"elective".equals(course.getCourseType())) throw new BusinessException("该课程不是选修课");
+
+        Long cnt = selMapper.selectCount(
+            new LambdaQueryWrapper<CourseSelection>()
+                .eq(CourseSelection::getCourseId, courseId)
+                .eq(CourseSelection::getStudentId, studentId)
+                .eq(CourseSelection::getStatus, 1));
+        if (cnt > 0) throw new BusinessException("已选该课程");
+
+        if (course.getEnrolled() != null && course.getCapacity() != null
+            && course.getEnrolled() >= course.getCapacity())
+            throw new BusinessException("该课程已满员");
+
+        CourseSelection cs = new CourseSelection();
+        cs.setStudentId(studentId);
+        cs.setCourseId(courseId);
+        cs.setSemester(course.getSemester());
+        cs.setSelectTime(LocalDateTime.now());
+        cs.setStatus(1);
+        cs.setSelectType("manual");
+        selMapper.insert(cs);
+
+        course.setEnrolled((course.getEnrolled() != null ? course.getEnrolled() : 0) + 1);
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public void confirmCourse(Long courseId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() != 1) throw new BusinessException("课程状态不正确");
+        course.setStatus(2);
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public void cancelCourse(Long courseId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        course.setStatus(3);
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public List<CourseClass> getCourseClasses(Long courseId) {
+        return courseClassMapper.selectList(
+            new LambdaQueryWrapper<CourseClass>()
+                .eq(CourseClass::getCourseId, courseId));
+    }
+
+    @Override
+    public void setCourseClasses(Long courseId, List<CourseClass> classes) {
+        courseClassMapper.delete(new LambdaQueryWrapper<CourseClass>()
+            .eq(CourseClass::getCourseId, courseId));
+        for (CourseClass cc : classes) {
+            cc.setCourseId(courseId);
+            cc.setId(null);
+            courseClassMapper.insert(cc);
+        }
     }
 }

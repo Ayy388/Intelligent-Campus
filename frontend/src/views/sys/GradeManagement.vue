@@ -1,0 +1,78 @@
+<template>
+  <el-card>
+    <template #header><div style="display:flex;justify-content:space-between"><span>年级管理</span><el-button type="primary" @click="openCreate">新增年级</el-button></div></template>
+    <el-table :data="list" v-loading="loading" stripe>
+      <el-table-column prop="id" label="ID" width="60" />
+      <el-table-column prop="name" label="年级名称" />
+      <el-table-column prop="year" label="年份" width="80" />
+      <el-table-column label="操作" width="150">
+        <template #default="{row}">
+          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" type="danger" @click="doDelete(row.id)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination v-model:current-page="page" :total="total" :page-size="size" layout="prev,pager,next" @current-change="fetch" />
+    <el-dialog v-model="dialogVisible" :title="isEdit?'编辑年级':'新增年级'" width="500px">
+      <el-form :model="form">
+        <el-form-item label="年级名称"><el-input v-model="form.name" placeholder="如 2023级" /></el-form-item>
+        <el-form-item label="年份"><el-input-number v-model="form.year" :min="2000" :max="2099" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submit">保存</el-button></template>
+    </el-dialog>
+  </el-card>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue'
+import { getGrades, createGrade, updateGrade, deleteGrade } from '@/api/sys'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+const list = ref<any[]>([])
+const loading = ref(false)
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const editId = ref<number | null>(null)
+const form = reactive({ name: '', year: new Date().getFullYear() })
+
+async function fetch() {
+  loading.value = true
+  const r = await getGrades({ page: page.value, size: size.value })
+  list.value = r.data.records || []
+  total.value = r.data.total || 0
+  loading.value = false
+}
+
+function openCreate() {
+  isEdit.value = false; editId.value = null
+  form.name = ''; form.year = new Date().getFullYear()
+  dialogVisible.value = true
+}
+
+function openEdit(row: any) {
+  isEdit.value = true; editId.value = row.id
+  form.name = row.name; form.year = row.year
+  dialogVisible.value = true
+}
+
+async function submit() {
+  if (isEdit.value && editId.value) {
+    await updateGrade(editId.value, form)
+    ElMessage.success('修改成功')
+  } else {
+    await createGrade(form)
+    ElMessage.success('新增成功')
+  }
+  dialogVisible.value = false; fetch()
+}
+
+async function doDelete(id: number) {
+  await ElMessageBox.confirm('确定删除该年级？', '提示', { type: 'warning' })
+  await deleteGrade(id); ElMessage.success('删除成功'); fetch()
+}
+
+onMounted(fetch)
+</script>

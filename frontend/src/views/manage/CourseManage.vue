@@ -25,9 +25,16 @@
       <el-table-column label="选课" width="100">
         <template #default="{row}">{{ row.enrolled || 0 }} / {{ row.capacity || 0 }}</template>
       </el-table-column>
+      <el-table-column label="类型" width="80">
+        <template #default="{row}">
+          <el-tag :type="row.courseType==='required'?'primary':'warning'" size="small">
+            {{ row.courseType==='required'?'必修':'选修' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status===1?'success':row.status===2?'info':'warning'">{{ row.status===1?'选课中':row.status===2?'已确认':'未发布' }}</el-tag></template></el-table-column>
-      <el-table-column label="操作" width="160">
-        <template #default="{row}"><el-button size="small" @click="showDialog(row)">编辑</el-button><el-button size="small" type="danger" @click="del(row.id)">删除</el-button></template>
+      <el-table-column label="操作" width="280">
+        <template #default="{row}"><el-button size="small" @click="showDialog(row)">编辑</el-button><el-button size="small" type="danger" @click="del(row.id)">删除</el-button><el-button v-if="row.courseType==='required' && row.status===0" size="small" type="primary" @click="openAssignDialog(row.id)">下达教学任务</el-button><el-button v-if="row.courseType==='elective' && row.status===1" size="small" type="success" @click="handleConfirm(row.id)">确认开课</el-button><el-button v-if="row.courseType==='elective' && row.status===1" size="small" type="danger" @click="handleCancel(row.id)">取消开课</el-button></template>
       </el-table-column>
     </el-table>
     <el-dialog v-model="dialogVisible" :title="editId?'编辑':'添加'" width="600px">
@@ -83,16 +90,43 @@
         </el-form-item>
         <el-form-item label="容量"><el-input-number v-model="form.capacity" :min="0" /></el-form-item>
         <el-form-item label="课程描述"><el-input v-model="form.description" type="textarea" :rows="2" placeholder="课程简介" /></el-form-item>
+        <el-form-item label="课程类型">
+          <el-radio-group v-model="form.courseType">
+            <el-radio value="required">必修</el-radio>
+            <el-radio value="elective">选修</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.courseType==='elective'" label="最低开课人数">
+          <el-input-number v-model="form.minStudents" :min="1" />
+        </el-form-item>
+        <el-form-item v-if="form.courseType==='elective'" label="选课截止时间">
+          <el-date-picker v-model="form.enrollEnd" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" />
+        </el-form-item>
+        <el-form-item label="目标班级">
+          <el-select v-model="selectedClasses" multiple placeholder="选择班级（不选则不限制）">
+            <el-option v-for="c in allClasses" :key="c.id" :label="c.className" :value="c.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态"><el-select v-model="form.status"><el-option :value="0" label="未发布（不可选课）" /><el-option :value="1" label="开放选课" /><el-option :value="2" label="已确认（不可选课/退课）" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="assignDialogVisible" title="下达教学任务 - 选择目标班级" width="500px">
+      <el-select v-model="assignClassIds" multiple style="width:100%">
+        <el-option v-for="c in allClasses" :key="c.id" :label="c.className" :value="c.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="assignDialogVisible=false">取消</el-button>
+        <el-button type="primary" @click="doAssign">确认分配</el-button>
+      </template>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { getCourses, addCourse, updateCourse, deleteCourse, importCourses, getSemesters } from '@/api/edu'
+import { getCourses, addCourse, updateCourse, deleteCourse, importCourses, getSemesters, setCourseClasses, confirmOpening, cancelOpening, assignCourseClasses } from '@/api/edu'
+import { getAllClasses } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
@@ -102,6 +136,11 @@ const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
 const teachers = ref<any[]>([])
 const semesters = ref<any[]>([])
+const allClasses = ref<any[]>([])
+const selectedClasses = ref<number[]>([])
+const assignDialogVisible = ref(false)
+const assignCourseId = ref<number | null>(null)
+const assignClassIds = ref<number[]>([])
 const form = reactive({
     courseCode: '',
     courseName: '',
@@ -115,7 +154,10 @@ const form = reactive({
     endWeek: 20,
     capacity: 0,
     description: '',
-    status: 0
+    status: 0,
+    courseType: 'required' as string,
+    minStudents: 1,
+    enrollEnd: ''
 })
 
 const scheduleForm = reactive({
@@ -166,9 +208,17 @@ async function fetchSemesters() {
   } catch {}
 }
 
+async function fetchAllClasses() {
+  try {
+    const r = await getAllClasses()
+    allClasses.value = r.data || []
+  } catch {}
+}
+
 function showDialog(row?: any) {
   editId.value = row?.id || null
-  Object.assign(form, row ? { ...row } : {
+  selectedClasses.value = []
+  Object.assign(form, row ? { ...row, courseType: row.courseType || 'required', minStudents: row.minStudents || 1, enrollEnd: row.enrollEnd || '' } : {
     courseCode: '',
     courseName: '',
     teacherId: null,
@@ -181,7 +231,10 @@ function showDialog(row?: any) {
     endWeek: 20,
     capacity: 0,
     description: '',
-    status: 0
+    status: 0,
+    courseType: 'required',
+    minStudents: 1,
+    enrollEnd: ''
   })
   parseSchedule()
   dialogVisible.value = true
@@ -192,10 +245,19 @@ async function save() {
     ElMessage.warning('编号和名称不能为空')
     return
   }
+  let courseId: number
   if (editId.value) {
     await updateCourse(editId.value, form)
+    courseId = editId.value
   } else {
-    await addCourse(form)
+    const res = await addCourse(form)
+    courseId = res.data?.id || res.data
+  }
+  if (selectedClasses.value.length > 0) {
+    const classes = selectedClasses.value.map((classId: number) => ({
+      courseId, classId, isRequired: form.courseType === 'required' ? 1 : 0
+    }))
+    await setCourseClasses(courseId, classes)
   }
   ElMessage.success('保存成功')
   dialogVisible.value = false
@@ -227,5 +289,31 @@ async function handleImport(file: File) {
   return false
 }
 
-onMounted(() => { fetch(); fetchTeachers(); fetchSemesters() })
+function openAssignDialog(courseId: number) {
+  assignCourseId.value = courseId
+  assignClassIds.value = []
+  assignDialogVisible.value = true
+}
+
+async function doAssign() {
+  if (!assignCourseId.value || assignClassIds.value.length === 0) return
+  await assignCourseClasses(assignCourseId.value, assignClassIds.value)
+  ElMessage.success('教学任务已下达')
+  assignDialogVisible.value = false
+  fetch()
+}
+
+async function handleConfirm(courseId: number) {
+  await confirmOpening(courseId)
+  ElMessage.success('课程已确认开课')
+  fetch()
+}
+
+async function handleCancel(courseId: number) {
+  await cancelOpening(courseId)
+  ElMessage.success('课程已取消')
+  fetch()
+}
+
+onMounted(() => { fetch(); fetchTeachers(); fetchSemesters(); fetchAllClasses() })
 </script>

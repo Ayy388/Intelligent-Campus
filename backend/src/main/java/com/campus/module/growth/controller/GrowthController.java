@@ -47,8 +47,15 @@ public class GrowthController {
             @RequestParam(defaultValue = "10") int size) {
         Claims claims = (Claims) auth.getDetails();
         String role = claims.get("role", String.class);
-        Long teacherId = "teacher".equals(role) ? Long.parseLong(claims.getSubject()) : null;
-        return toPage(growthService.pageCheckIns(teacherId, page, size));
+        Long userId = Long.parseLong(claims.getSubject());
+        Page<CheckIn> result;
+        if ("student".equals(role)) {
+            result = growthService.getCheckInsForStudent(userId, page, size);
+        } else {
+            Long teacherId = "teacher".equals(role) ? userId : null;
+            result = growthService.pageCheckIns(teacherId, page, size);
+        }
+        return toPage(result);
     }
 
     @PostMapping("/checkin")
@@ -79,6 +86,12 @@ public class GrowthController {
 
     @DeleteMapping("/checkin/{id}")
     public Result<Void> deleteCheckIn(@PathVariable Long id) { growthService.deleteCheckIn(id); return Result.ok(); }
+
+    @PostMapping("/checkin/{id}/close")
+    public Result<Void> closeCheckIn(@PathVariable Long id, Authentication auth) {
+        growthService.closeCheckIn(id, getUserId(auth));
+        return Result.ok();
+    }
 
     private <T> Result<PageResult<T>> toPage(Page<T> p) {
         PageResult<T> pr = new PageResult<>();

@@ -20,6 +20,9 @@ public class Course {
     private Integer startWeek;
     private Integer endWeek;
     private Integer capacity;
+    private String courseType;
+    private Integer minStudents;
+    private LocalDateTime enrollEnd;
     private Integer enrolled;
     private String description;
     private Integer status;

@@ -5,7 +5,7 @@
       <el-table-column prop="username" label="用户名" />
       <el-table-column prop="realName" label="姓名" />
       <el-table-column prop="roleName" label="角色" width="80" />
-      <el-table-column prop="department" label="院系" />
+      <el-table-column prop="departmentName" label="院系" />
       <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status?'success':'danger'">{{ row.status?'启用':'禁用' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="200">
         <template #default="{row}">
@@ -21,7 +21,7 @@
         <el-form-item label="姓名"><el-input v-model="form.realName" /></el-form-item>
         <el-form-item label="密码"><el-input v-model="form.password" type="password" /></el-form-item>
         <el-form-item label="角色"><el-select v-model="form.roleId"><el-option :value="1" label="学生" /><el-option :value="2" label="教师" /><el-option :value="3" label="管理员" /></el-select></el-form-item>
-        <el-form-item label="院系"><el-input v-model="form.department" /></el-form-item>
+        <el-form-item label="院系"><el-select v-model="form.departmentId" placeholder="选择院系" class="w-full"><el-option v-for="d in departments" :key="d.id" :label="d.name" :value="d.id" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>
@@ -30,7 +30,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getUsers, createUser, updateUser, toggleUserStatus } from '@/api/sys'
+import { getUsers, createUser, updateUser, toggleUserStatus, getAllDepartments } from '@/api/sys'
 import { ElMessage } from 'element-plus'
 const tableData = ref([])
 const loading = ref(false)
@@ -38,11 +38,13 @@ const page = ref(1)
 const total = ref(0)
 const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
-const form = reactive({ username: '', realName: '', password: '', roleId: 1, department: '' })
+const departments = ref<any[]>([])
+const form = reactive({ username: '', realName: '', password: '', roleId: 1, departmentId: null as number | null })
 async function fetch() { loading.value = true; const r = await getUsers({ page: page.value, size: 10 }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
+async function fetchDepartments() { try { const r = await getAllDepartments(); departments.value = r.data || [] } catch {} }
 function showDialog(row?: any) {
   editId.value = row?.id || null
-  Object.assign(form, row ? { ...row, password: '' } : { username: '', realName: '', password: '', roleId: 1, department: '' })
+  Object.assign(form, row ? { ...row, password: '' } : { username: '', realName: '', password: '', roleId: 1, departmentId: null })
   dialogVisible.value = true
 }
 async function save() {
@@ -50,5 +52,5 @@ async function save() {
   ElMessage.success('保存成功'); dialogVisible.value = false; fetch()
 }
 async function toggleStatus(row: any) { await toggleUserStatus(row.id, row.status ? 0 : 1); ElMessage.success('操作成功'); fetch() }
-onMounted(fetch)
+onMounted(() => { fetch(); fetchDepartments() })
 </script>

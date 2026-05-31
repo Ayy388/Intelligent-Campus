@@ -7,8 +7,20 @@
         <el-table-column prop="teacherName" label="教师" width="100" />
         <el-table-column prop="credit" label="学分" width="60" />
         <el-table-column prop="classroom" label="教室" width="120" />
-        <el-table-column label="容量" width="100">
-          <template #default="{row}">{{ row.enrolled }}/{{ row.capacity }}</template>
+        <el-table-column label="课程类型" width="80">
+          <template #default="{row}">
+            <el-tag :type="row.courseType==='elective'?'warning':'primary'" size="small">
+              {{ row.courseType==='elective'?'选修':'必修' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="报名情况" width="140">
+          <template #default="{row}">
+            <div class="text-xs leading-relaxed">
+              <div>最低开课: {{ row.minStudents ?? '-' }}人</div>
+              <div>已报名: {{ row.enrolled ?? 0 }}人</div>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{row}">
@@ -19,9 +31,9 @@
           <template #default="{row}">
             <el-button
               type="primary" size="small"
-              @click="doSelect(row)"
+              @click="doEnroll(row)"
               :disabled="row.enrolled>=row.capacity || row.status!==1"
-            >选课</el-button>
+            >报名</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -48,20 +60,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getCourses, getSelections, selectCourse, dropCourse } from '@/api/edu'
+import { getAvailableCourses, enrollCourse, getCourseClasses, getSelections, dropCourse } from '@/api/edu'
 import { ElMessage } from 'element-plus'
 const courses = ref([])
 const mySelections = ref([])
 const loading = ref(false)
 async function fetchData() {
   loading.value = true
-  const [r1, r2] = await Promise.all([getCourses({ page: 1, size: 100 }), getSelections()])
-  courses.value = r1.data.records.filter((c: any) => c.status === 1 || c.status === 2)
+  const [r1, r2] = await Promise.all([getAvailableCourses(), getSelections()])
+  courses.value = r1.data || []
   mySelections.value = r2.data
   loading.value = false
 }
-async function doSelect(course: any) {
-  try { await selectCourse(course.id, course.semester || '2026-春'); ElMessage.success('选课成功'); fetchData() }
+async function doEnroll(course: any) {
+  try { await enrollCourse(course.id); ElMessage.success('报名成功'); fetchData() }
   catch (e: any) { ElMessage.error(e.message) }
 }
 async function doDrop(sel: any) {

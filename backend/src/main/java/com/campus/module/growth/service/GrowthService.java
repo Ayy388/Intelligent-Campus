@@ -11,8 +11,10 @@ public interface GrowthService {
     Page<CheckIn> pageCheckIns(Long teacherId, int page, int size);
     CheckIn createCheckIn(CheckIn c);
     CheckInRecord doCheckIn(Long checkinId, Long studentId);
+    void closeCheckIn(Long id, Long teacherId);
     java.util.List<CheckInRecord> getCheckInRecords(Long checkinId);
     boolean getCheckInStatus(Long checkinId, Long studentId);
     StudentProfile getProfileByStudentId(Long studentId);
     void deleteCheckIn(Long id);
+    Page<CheckIn> getCheckInsForStudent(Long studentId, int page, int size);
 }

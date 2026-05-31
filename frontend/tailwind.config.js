@@ -3,6 +3,10 @@ export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        heading: ['Noto Serif SC', 'PingFang SC', 'Microsoft YaHei', 'serif'],
+        body: ['Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'],
+      },
       colors: {
         ink:   '#111827',
         slate: '#1F2937',

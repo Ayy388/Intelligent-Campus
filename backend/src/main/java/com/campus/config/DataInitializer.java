@@ -435,6 +435,123 @@ public class DataInitializer implements CommandLineRunner {
         try {
             jdbcTemplate.execute("ALTER TABLE growth_checkin ADD COLUMN course_id BIGINT");
         } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE growth_checkin ADD COLUMN class_id BIGINT");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN course_type VARCHAR(20) DEFAULT 'required'");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN min_students INT DEFAULT 1");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN enroll_end DATETIME");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course_selection ADD COLUMN select_type VARCHAR(20) DEFAULT 'manual'");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN class_id BIGINT");
+        } catch (Exception ignored) {}
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sys_class (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                class_name VARCHAR(100) NOT NULL,
+                department VARCHAR(100),
+                major VARCHAR(100),
+                grade VARCHAR(20),
+                advisor VARCHAR(50),
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS edu_course_class (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                course_id BIGINT NOT NULL,
+                class_id BIGINT,
+                is_required TINYINT(1) DEFAULT 0
+            )
+        """);
+
+        // 迁移数据：将 sys_user.class_name 中的班级名称转为 sys_class 记录，并更新 class_id
+        try {
+            Integer needMigrate = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_user WHERE class_name IS NOT NULL AND class_name != '' AND class_id IS NULL",
+                Integer.class);
+            if (needMigrate != null && needMigrate > 0) {
+                jdbcTemplate.update("INSERT IGNORE INTO sys_class (class_name) SELECT DISTINCT class_name FROM sys_user WHERE class_name IS NOT NULL AND class_name != ''");
+                jdbcTemplate.update(
+                    "UPDATE sys_user u JOIN sys_class c ON u.class_name = c.class_name SET u.class_id = c.id WHERE u.class_id IS NULL");
+            }
+        } catch (Exception ignored) {}
+
+        // 创建院系/专业/年级字典表
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sys_department (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                code VARCHAR(20),
+                sort_order INT DEFAULT 0,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sys_major (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                code VARCHAR(20),
+                department_id BIGINT,
+                years INT DEFAULT 4,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS sys_grade (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                year INT NOT NULL UNIQUE,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """);
+
+        // 添加外键字段
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN department_id BIGINT");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN department_id BIGINT");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN major_id BIGINT");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN grade_id BIGINT");
+        } catch (Exception ignored) {}
+
+        // 迁移院系数据
+        try {
+            Integer cnt = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sys_department", Integer.class);
+            if (cnt != null && cnt == 0) {
+                jdbcTemplate.update("INSERT INTO sys_department (name) SELECT DISTINCT department FROM sys_user WHERE department IS NOT NULL AND department != ''");
+                jdbcTemplate.update("UPDATE sys_user u JOIN sys_department d ON u.department = d.name SET u.department_id = d.id WHERE u.department_id IS NULL");
+            }
+        } catch (Exception ignored) {}
+
+        // 迁移班级院系/专业/年级数据
+        try {
+            jdbcTemplate.update("INSERT IGNORE INTO sys_department (name) SELECT DISTINCT department FROM sys_class WHERE department IS NOT NULL AND department != ''");
+            jdbcTemplate.update("UPDATE sys_class c JOIN sys_department d ON c.department = d.name SET c.department_id = d.id WHERE c.department_id IS NULL");
+
+            jdbcTemplate.update("INSERT IGNORE INTO sys_major (name, department_id) SELECT DISTINCT s.major, s.department_id FROM sys_class s WHERE s.major IS NOT NULL AND s.major != ''");
+            jdbcTemplate.update("UPDATE sys_class c JOIN sys_major m ON c.major = m.name AND c.department_id = m.department_id SET c.major_id = m.id WHERE c.major_id IS NULL");
+
+            jdbcTemplate.update("INSERT IGNORE INTO sys_grade (name, year) SELECT DISTINCT grade, CAST(grade AS UNSIGNED) FROM sys_class WHERE grade IS NOT NULL AND grade != ''");
+            jdbcTemplate.update("UPDATE sys_class c JOIN sys_grade g ON c.grade = g.name SET c.grade_id = g.id WHERE c.grade_id IS NULL");
+        } catch (Exception ignored) {}
 
         Integer userCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sys_user", Integer.class);
         if (userCount != null && userCount == 0) {
@@ -522,34 +639,34 @@ public class DataInitializer implements CommandLineRunner {
             Long teacherId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 't001'", Long.class);
             if (teacherId != null) {
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS101", "Java程序设计", teacherId, 4.0, 64, "2026-春", "教3-201", 
-                    "{\"day\":1,\"timeSlot\":1}", 1, 20, 50, 0, "Java基础编程入门课程", 1);
+                    "{\"day\":1,\"timeSlot\":1}", 1, 20, 50, 0, "Java基础编程入门课程", 1, "required");
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS102", "数据结构与算法", teacherId, 3.5, 56, "2026-春", "教3-302", 
-                    "{\"day\":2,\"timeSlot\":2}", 1, 20, 45, 0, "算法与数据结构课程", 1);
+                    "{\"day\":2,\"timeSlot\":2}", 1, 20, 45, 0, "算法与数据结构课程", 1, "required");
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS201", "操作系统", teacherId, 3.0, 48, "2026-春", "教4-105", 
-                    "{\"day\":3,\"timeSlot\":3}", 1, 20, 40, 0, "操作系统原理课程", 1);
+                    "{\"day\":3,\"timeSlot\":3}", 1, 20, 40, 0, "操作系统原理课程", 1, "required");
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "ENG101", "大学英语", teacherId, 3.0, 48, "2026-春", "外语楼-202", 
-                    "{\"day\":4,\"timeSlot\":1}", 1, 20, 50, 0, "大学英语读写译", 1);
+                    "{\"day\":4,\"timeSlot\":1}", 1, 20, 50, 0, "大学英语读写译", 1, "required");
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "MATH201", "高等数学", teacherId, 5.0, 80, "2026-春", "教1-101", 
-                    "{\"day\":5,\"timeSlot\":2}", 1, 20, 100, 0, "高等数学微积分", 1);
+                    "{\"day\":5,\"timeSlot\":2}", 1, 20, 100, 0, "高等数学微积分", 1, "required");
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS301", "计算机网络", teacherId, 3.0, 48, "2026-春", "教3-401", 
-                    "{\"day\":2,\"timeSlot\":4}", 1, 20, 35, 0, "计算机网络基础知识", 1);
+                    "{\"day\":2,\"timeSlot\":4}", 1, 20, 35, 0, "计算机网络基础知识", 1, "required");
             }
         }
 

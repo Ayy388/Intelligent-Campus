@@ -20,23 +20,28 @@
               <span class="text-sm font-semibold text-ink">{{ c.title }}</span>
               <el-tag size="small">{{ c.checkinType === 'course' ? '课程签到' : '活动签到' }}</el-tag>
               <el-tag v-if="c.status === 1" size="small" type="success">进行中</el-tag>
-              <el-tag v-else size="small" type="info">已结束</el-tag>
+              <el-tag v-else-if="c.status === 0" size="small" type="info">已结束</el-tag>
+              <el-tag v-else size="small" type="warning">待激活</el-tag>
             </div>
             <div class="text-xs text-mist mt-1">
               {{ c.teacherName || '' }}
+              <span v-if="c.courseName"> · {{ c.courseName }}</span>
               <span v-if="c.startTime && c.endTime"> · {{ formatTime(c.startTime) }} ~ {{ formatTime(c.endTime) }}</span>
             </div>
             <div class="text-xs text-ash mt-1">
-              已签到 {{ c.checkedCount }} / {{ c.totalCount || '-' }}
+              已签到 {{ c.checkedCount }} / {{ c.totalCount != null ? c.totalCount : '-' }}
             </div>
           </div>
-          <div v-if="!isTeacher" class="ml-4 flex-shrink-0">
-            <el-tag v-if="checkedMap[c.id]" size="small" type="success">已签到</el-tag>
-            <button v-else @click.stop="handleCheckIn(c)"
-              :disabled="c.status !== 1 || isOutOfTime(c)"
-              class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              签到
-            </button>
+          <div class="ml-4 flex-shrink-0 flex items-center gap-2">
+            <el-button v-if="isTeacher && c.status !== 0" size="small" type="warning" plain @click.stop="handleClose(c)">关闭签到</el-button>
+            <div v-if="!isTeacher">
+              <el-tag v-if="checkedMap[c.id]" size="small" type="success">已签到</el-tag>
+              <button v-else @click.stop="handleCheckIn(c)"
+                :disabled="c.status === 0"
+                class="px-4 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                签到
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -52,8 +57,13 @@
           <el-input v-model="createForm.title" placeholder="请输入签到标题" />
         </el-form-item>
         <el-form-item label="关联课程">
-          <el-select v-model="createForm.courseId" placeholder="选择课程（可选）" class="w-full" clearable>
+          <el-select v-model="createForm.courseId" placeholder="选择课程（可选）" class="w-full" clearable @change="onCourseChange">
             <el-option v-for="c in teacherCourses" :key="c.id" :label="`${c.courseName} (${c.semester})`" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标班级" v-if="courseClassList.length > 0">
+          <el-select v-model="selectedClassId" placeholder="选择签到班级" class="w-full" clearable>
+            <el-option v-for="cc in courseClassList" :key="cc.id" :label="cc.className || '班级'+cc.classId" :value="cc.classId" />
           </el-select>
         </el-form-item>
         <el-form-item label="签到类型">
@@ -63,10 +73,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间">
-          <el-date-picker v-model="createForm.startTime" type="datetime" placeholder="选择开始时间" class="w-full" />
+          <el-date-picker v-model="createForm.startTime" type="datetime" placeholder="选择开始时间" class="w-full" value-format="YYYY-MM-DDTHH:mm:ss" />
         </el-form-item>
         <el-form-item label="结束时间">
-          <el-date-picker v-model="createForm.endTime" type="datetime" placeholder="选择结束时间" class="w-full" />
+          <el-date-picker v-model="createForm.endTime" type="datetime" placeholder="选择结束时间" class="w-full" value-format="YYYY-MM-DDTHH:mm:ss" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -93,10 +103,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
-import { getCheckIns, createCheckIn, doCheckIn, getCheckInRecords, getCheckInStatus } from '@/api/growth'
-import { getTeacherCourses } from '@/api/edu'
+import { getCheckIns, createCheckIn, doCheckIn, getCheckInRecords, getCheckInStatus, closeCheckIn } from '@/api/growth'
+import { getTeacherCourses, getCourseClasses } from '@/api/edu'
 import { useUserStore } from '@/store/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
 const isTeacher = computed(() => userStore.role === 'teacher' || userStore.role === 'admin')
@@ -112,6 +122,8 @@ const checkedMap = ref<Record<number, boolean>>({})
 const createVisible = ref(false)
 const createForm = reactive({ title: '', checkinType: 'course', startTime: '', endTime: '', courseId: null as number | null })
 const teacherCourses = ref<any[]>([])
+const courseClassList = ref<any[]>([])
+const selectedClassId = ref<number | null>(null)
 
 const recordsVisible = ref(false)
 const records = ref<any[]>([])
@@ -162,7 +174,19 @@ function showCreate() {
   createForm.startTime = ''
   createForm.endTime = ''
   createForm.courseId = null
+  selectedClassId.value = null
+  courseClassList.value = []
   createVisible.value = true
+}
+
+async function onCourseChange(courseId: number) {
+  selectedClassId.value = null
+  if (courseId) {
+    const r = await getCourseClasses(courseId)
+    courseClassList.value = r.data || []
+  } else {
+    courseClassList.value = []
+  }
 }
 
 async function doCreate() {
@@ -179,12 +203,13 @@ async function doCreate() {
     return
   }
   try {
-    await createCheckIn(createForm)
+    const payload = { ...createForm, classId: selectedClassId.value }
+    await createCheckIn(payload)
     ElMessage.success('发起成功')
     createVisible.value = false
     fetchCheckIns()
-  } catch {
-    ElMessage.error('发起失败')
+  } catch (e: any) {
+    ElMessage.error(e.message || '发起失败')
   }
 }
 
@@ -194,8 +219,8 @@ async function handleCheckIn(c: any) {
     ElMessage.success('签到成功')
     checkedMap.value[c.id] = true
     fetchCheckIns()
-  } catch {
-    ElMessage.error('签到失败')
+  } catch (e: any) {
+    ElMessage.error(e.message || '签到失败')
   }
 }
 
@@ -207,6 +232,19 @@ async function viewRecords(c: any) {
   } catch {
     records.value = []
     recordsVisible.value = true
+  }
+}
+
+async function handleClose(c: any) {
+  try {
+    await ElMessageBox.confirm('确定关闭该签到吗？关闭后学生将无法继续签到。', '关闭签到', {
+      type: 'warning', confirmButtonText: '确定关闭', cancelButtonText: '取消'
+    })
+    await closeCheckIn(c.id)
+    ElMessage.success('签到已关闭')
+    fetchCheckIns()
+  } catch (e: any) {
+    if (e !== 'cancel' && e?.message) ElMessage.error(e.message)
   }
 }
 

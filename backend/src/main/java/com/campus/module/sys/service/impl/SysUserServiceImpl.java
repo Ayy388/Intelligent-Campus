@@ -10,6 +10,7 @@ import com.campus.module.sys.entity.SysRole;
 import com.campus.module.sys.entity.SysUser;
 import com.campus.module.sys.mapper.SysRoleMapper;
 import com.campus.module.sys.mapper.SysUserMapper;
+import com.campus.module.sys.mapper.SysDepartmentMapper;
 import com.campus.module.sys.service.SysUserService;
 import com.campus.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final SysRoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final SysDepartmentMapper departmentMapper;
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -53,6 +55,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         for (SysUser u : result.getRecords()) {
             SysRole role = roleMapper.selectById(u.getRoleId());
             if (role != null) u.setRoleName(role.getRoleName());
+            if (u.getDepartmentId() != null) {
+                var dept = departmentMapper.selectById(u.getDepartmentId());
+                if (dept != null) u.setDepartmentName(dept.getName());
+            }
         }
         return result;
     }

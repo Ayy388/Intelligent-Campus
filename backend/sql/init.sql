@@ -35,6 +35,7 @@ CREATE TABLE sys_user (
     role_id BIGINT NOT NULL,
     department VARCHAR(100),
     class_name VARCHAR(100),
+    class_id BIGINT,
     status TINYINT DEFAULT 1,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -60,6 +61,9 @@ CREATE TABLE edu_course (
     enrolled INT DEFAULT 0,
     description TEXT,
     status TINYINT DEFAULT 0,
+    course_type VARCHAR(20) DEFAULT 'required',
+    min_students INT DEFAULT 1,
+    enroll_end DATETIME,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程表';
@@ -71,6 +75,7 @@ CREATE TABLE edu_course_selection (
     semester VARCHAR(20) NOT NULL,
     select_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     status TINYINT DEFAULT 1,
+    select_type VARCHAR(20) DEFAULT 'manual',
     UNIQUE KEY uk_student_course_semester (student_id, course_id, semester),
     FOREIGN KEY (student_id) REFERENCES sys_user(id),
     FOREIGN KEY (course_id) REFERENCES edu_course(id)
@@ -153,3 +158,20 @@ CREATE TABLE ai_message (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (conversation_id) REFERENCES ai_conversation(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI消息明细表';
+
+CREATE TABLE IF NOT EXISTS sys_class (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    class_name  VARCHAR(100) NOT NULL COMMENT '班级名称，如2023级计算机科学与技术1班',
+    department  VARCHAR(100) DEFAULT NULL COMMENT '所属院系',
+    major       VARCHAR(100) DEFAULT NULL COMMENT '专业',
+    grade       VARCHAR(20) DEFAULT NULL COMMENT '年级，如2023',
+    advisor     VARCHAR(50) DEFAULT NULL COMMENT '辅导员',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS edu_course_class (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    course_id   BIGINT NOT NULL COMMENT '关联edu_course.id',
+    class_id    BIGINT DEFAULT NULL COMMENT '关联sys_class.id，null=不限班级',
+    is_required TINYINT(1) DEFAULT 0 COMMENT '1=必修 0=选修'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

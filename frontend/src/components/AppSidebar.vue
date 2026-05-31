@@ -23,12 +23,13 @@
             <el-icon><Reading /></el-icon>
             <span>教务学习</span>
           </template>
+          <el-menu-item v-if="userStore.role !== 'student'" index="/edu/teaching">我的教学</el-menu-item>
           <el-menu-item v-if="userStore.role !== 'student'" index="/edu/courses">课程列表</el-menu-item>
           <el-menu-item index="/edu/schedule">课程表</el-menu-item>
-          <el-menu-item v-if="userStore.role !== 'student'" index="/edu/course-students">课程学生名单</el-menu-item>
           <el-menu-item v-if="userStore.role === 'student'" index="/edu/selection">在线选课</el-menu-item>
           <el-menu-item index="/edu/grades">成绩查询</el-menu-item>
           <el-menu-item v-if="userStore.role === 'teacher' || userStore.role === 'admin'" index="/edu/grade-entry">成绩录入</el-menu-item>
+        <el-menu-item v-if="userStore.role === 'admin' || userStore.role === 'teacher'" index="/admin/grade-stats">成绩统计</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="admin">
@@ -37,6 +38,11 @@
             <span>行政服务</span>
           </template>
           <el-menu-item index="/admin/notifications">通知公告</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'admin'" index="/admin/classes">班级管理</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'admin'" index="/admin/departments">院系管理</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'admin'" index="/admin/majors">专业管理</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'admin'" index="/admin/grades">年级管理</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'admin'" index="/admin/club-approval">社团审核</el-menu-item>
           <el-menu-item v-if="userStore.role === 'student'" index="/admin/leave">请假申请</el-menu-item>
           <el-menu-item v-if="userStore.role === 'teacher'" index="/admin/leave-approval">请假审批</el-menu-item>
           <el-menu-item index="/admin/guides">办事指南</el-menu-item>
@@ -69,6 +75,7 @@
           </template>
           <el-menu-item v-if="userStore.role==='student'" index="/growth/profile">我的档案</el-menu-item>
           <el-menu-item index="/growth/checkin">签到打卡</el-menu-item>
+          <el-menu-item v-if="userStore.role==='admin'||userStore.role==='teacher'" index="/admin/checkin-stats">签到统计</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="message">

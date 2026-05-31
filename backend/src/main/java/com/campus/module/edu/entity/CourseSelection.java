@@ -13,10 +13,17 @@ public class CourseSelection {
     private String semester;
     private LocalDateTime selectTime;
     private Integer status;
+    private String selectType;       // auto(系统分配/必修) / manual(自主选课/选修)
     @TableField(exist = false)
     private String courseName;
     @TableField(exist = false)
     private String studentName;
     @TableField(exist = false)
     private Integer courseStatus;
+    @TableField(exist = false)
+    private String studentClassName;
+    @TableField(exist = false)
+    private String studentDepartment;
+    @TableField(exist = false)
+    private String studentPhone;
 }

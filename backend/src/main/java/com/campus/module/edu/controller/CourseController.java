@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.common.PageResult;
 import com.campus.common.Result;
 import com.campus.module.edu.entity.Course;
+import com.campus.module.edu.entity.CourseClass;
 import com.campus.module.edu.entity.CourseSelection;
 import com.campus.module.edu.entity.Grade;
 import com.campus.module.edu.service.CourseService;
@@ -36,8 +37,13 @@ public class CourseController {
         return Result.ok(pr);
     }
 
+    @GetMapping("/courses/available")
+    public Result<List<Course>> availableCourses(Authentication auth) {
+        return Result.ok(courseService.getAvailableCourses(getUserId(auth)));
+    }
+
     @GetMapping("/courses/{id}")
-    public Result<Course> getOne(@PathVariable Long id) { return Result.ok(courseService.getById(id)); }
+    public Result<Course> get(@PathVariable Long id) { return Result.ok(courseService.getById(id)); }
 
     @PostMapping("/courses")
     public Result<Course> add(@RequestBody Course c) {
@@ -170,5 +176,45 @@ public class CourseController {
             e.printStackTrace();
             return Result.error("导入失败: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/{id}/assign-classes")
+    public Result<Void> assignClasses(@PathVariable Long id, @RequestBody List<Long> classIds) {
+        courseService.assignRequiredCourse(id, classIds);
+        return Result.ok();
+    }
+
+    @GetMapping("/{id}/classes")
+    public Result<List<CourseClass>> getClasses(@PathVariable Long id) {
+        return Result.ok(courseService.getCourseClasses(id));
+    }
+
+    @PutMapping("/{id}/classes")
+    public Result<Void> setClasses(@PathVariable Long id, @RequestBody List<CourseClass> classes) {
+        courseService.setCourseClasses(id, classes);
+        return Result.ok();
+    }
+
+    @PostMapping("/{id}/enroll")
+    public Result<Void> enroll(@PathVariable Long id, Authentication auth) {
+        courseService.enrollElective(id, getUserId(auth));
+        return Result.ok();
+    }
+
+    @PostMapping("/{id}/confirm-opening")
+    public Result<Void> confirmOpening(@PathVariable Long id) {
+        courseService.confirmCourse(id);
+        return Result.ok();
+    }
+
+    @PostMapping("/{id}/cancel-opening")
+    public Result<Void> cancelOpening(@PathVariable Long id) {
+        courseService.cancelCourse(id);
+        return Result.ok();
+    }
+
+    private Long getUserId(Authentication auth) {
+        Claims claims = (Claims) auth.getDetails();
+        return Long.parseLong(claims.getSubject());
     }
 }

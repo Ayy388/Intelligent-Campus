@@ -13,3 +13,4 @@ export function doCheckIn(checkinId: number) {
 }
 export function getCheckInRecords(id: number) { return request.get(`/growth/checkin/${id}/records`) }
 export function getCheckInStatus(id: number) { return request.get(`/growth/checkin/${id}/status`) }
+export function closeCheckIn(id: number) { return request.post(`/growth/checkin/${id}/close`) }

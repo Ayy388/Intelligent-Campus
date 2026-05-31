@@ -10,6 +10,7 @@ public class CheckIn {
     private Long id;
     private Long teacherId;
     private Long courseId;
+    private Long classId;
     private String title;
     private String checkinType;
     private LocalDateTime startTime;

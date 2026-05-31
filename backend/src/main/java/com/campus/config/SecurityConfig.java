@@ -27,7 +27,19 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/sys/departments/all").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/sys/majors/all").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/sys/grades/all").authenticated()
                 .requestMatchers("/api/sys/**").hasRole("admin")
+
+                // 选课（学生可访问）
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/enroll").authenticated()
+                // 查看课程班级（教师和管理员）
+                .requestMatchers(HttpMethod.GET, "/api/edu/courses/*/classes").hasAnyRole("admin", "teacher")
+                // 必修分配、开课确认（仅管理员）
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/assign-classes").hasRole("admin")
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/confirm-opening").hasRole("admin")
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/cancel-opening").hasRole("admin")
 
                 // 教务: 课程增删改→teacher/admin, 查看→所有人
                 .requestMatchers(HttpMethod.GET, "/api/edu/courses", "/api/edu/courses/**").authenticated()

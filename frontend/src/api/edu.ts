@@ -85,3 +85,31 @@ export function getCourseStudents(courseId: number) {
 export function getTeacherCourses() {
   return request.get('/edu/courses/teacher')
 }
+
+export function assignCourseClasses(courseId: number, classIds: number[]) {
+  return request.post(`/edu/courses/${courseId}/assign-classes`, classIds)
+}
+
+export function getCourseClasses(courseId: number) {
+  return request.get(`/edu/courses/${courseId}/classes`)
+}
+
+export function setCourseClasses(courseId: number, classes: any[]) {
+  return request.put(`/edu/courses/${courseId}/classes`, classes)
+}
+
+export function getAvailableCourses() {
+  return request.get('/edu/courses/available')
+}
+
+export function enrollCourse(courseId: number) {
+  return request.post(`/edu/courses/${courseId}/enroll`)
+}
+
+export function confirmOpening(courseId: number) {
+  return request.post(`/edu/courses/${courseId}/confirm-opening`)
+}
+
+export function cancelOpening(courseId: number) {
+  return request.post(`/edu/courses/${courseId}/cancel-opening`)
+}
