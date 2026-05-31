@@ -3,47 +3,155 @@
     <div class="mb-4">
       <span class="text-lg font-bold text-ink">成绩录入</span>
     </div>
-    <div class="bg-white rounded-xl border border-soft p-5 max-w-lg">
-      <el-form :model="form" label-width="80px">
-        <el-form-item label="学生学号">
-          <el-input v-model="form.studentId" placeholder="请输入学生ID" type="number" />
-        </el-form-item>
-        <el-form-item label="课程ID">
-          <el-input v-model="form.courseId" placeholder="请输入课程ID" type="number" />
-        </el-form-item>
-        <el-form-item label="学期">
-          <el-input v-model="form.semester" placeholder="如 2026-春" />
-        </el-form-item>
-        <el-form-item label="成绩类型">
-          <el-select v-model="form.gradeType" class="w-full">
-            <el-option label="百分制" value="百分制" /><el-option label="等级制" value="等级制" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="分数">
-          <el-input v-model="form.score" placeholder="请输入分数" type="number" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" placeholder="备注（可选）" />
-        </el-form-item>
-      </el-form>
-      <div class="mt-4">
-        <button @click="doSubmit" class="px-6 py-2 bg-ink text-white rounded-lg text-sm font-medium hover:bg-steel transition-colors">提交成绩</button>
+    <div class="bg-white rounded-xl border border-soft p-5">
+      <div class="flex items-center gap-4 mb-5">
+        <span class="text-sm text-ash">选择课程：</span>
+        <el-select v-model="selectedCourseId" placeholder="请选择授课课程" class="w-80" @change="onCourseChange" clearable>
+          <el-option v-for="c in courses" :key="c.id" :label="`${c.courseName} (${c.semester})`" :value="c.id" />
+        </el-select>
+      </div>
+
+      <div v-if="!selectedCourseId" class="text-center text-mist py-10 text-sm">
+        请先选择一门课程
+      </div>
+
+      <div v-else-if="students.length === 0" class="text-center text-mist py-10 text-sm">
+        该课程暂无选课学生
+      </div>
+
+      <div v-else>
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm text-ash">共 {{ students.length }} 名学生</span>
+          <el-button type="primary" size="small" @click="submitAllGrades">批量提交成绩</el-button>
+        </div>
+        <el-table :data="students" max-height="480" border>
+          <el-table-column prop="studentName" label="学生姓名" width="120" />
+          <el-table-column label="学号" width="100">
+            <template #default="{row}">{{ row.studentId }}</template>
+          </el-table-column>
+          <el-table-column label="课程" width="160">
+            <template #default="{row}">{{ row.courseName || '未获取' }}</template>
+          </el-table-column>
+          <el-table-column label="学期" width="120">
+            <template #default="{row}">{{ row.semester }}</template>
+          </el-table-column>
+          <el-table-column label="成绩类型" width="100">
+            <template #default="{row}">
+              <el-select v-model="gradeTypes[row.id]" class="w-full">
+                <el-option label="百分制" value="百分制" />
+                <el-option label="等级制" value="等级制" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="分数" width="120">
+            <template #default="{row}">
+              <el-input-number v-model="scores[row.id]" :min="0" :max="100" :disabled="gradeTypes[row.id]==='等级制'" placeholder="分数" class="w-full" />
+            </template>
+          </el-table-column>
+          <el-table-column label="等级" width="100">
+            <template #default="{row}">
+              <el-select v-model="gradeLevels[row.id]" class="w-full" :disabled="gradeTypes[row.id]!=='等级制'">
+                <el-option label="优" value="优" />
+                <el-option label="良" value="良" />
+                <el-option label="中" value="中" />
+                <el-option label="及格" value="及格" />
+                <el-option label="不及格" value="不及格" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" width="140">
+            <template #default="{row}">
+              <el-input v-model="remarks[row.id]" placeholder="可选" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="80" fixed="right">
+            <template #default="{row}">
+              <el-button size="small" type="primary" @click="doSubmitSingle(row)">录入</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
-import { inputGrade } from '@/api/edu'
+import { ref, reactive, onMounted } from 'vue'
+import { getTeacherCourses, getCourseStudents, inputGrade } from '@/api/edu'
 import { ElMessage } from 'element-plus'
-const form = reactive({ studentId: '', courseId: '', semester: '2026-春', gradeType: '百分制', score: '', remark: '' })
-async function doSubmit() {
-  if (!form.studentId || !form.courseId || !form.semester || !form.score) { ElMessage.warning('请填写完整信息'); return }
+
+const courses = ref<any[]>([])
+const selectedCourseId = ref<number | null>(null)
+const students = ref<any[]>([])
+
+const scores = reactive<Record<number, number>>({})
+const gradeTypes = reactive<Record<number, string>>({})
+const gradeLevels = reactive<Record<number, string>>({})
+const remarks = reactive<Record<number, string>>({})
+
+async function fetchCourses() {
   try {
-    await inputGrade({ studentId: Number(form.studentId), courseId: Number(form.courseId), semester: form.semester, gradeType: form.gradeType, score: Number(form.score), remark: form.remark })
-    ElMessage.success('成绩录入成功')
-    form.studentId = ''; form.courseId = ''; form.score = ''; form.remark = ''
-  } catch { ElMessage.error('录入失败') }
+    const r = await getTeacherCourses()
+    courses.value = r.data || []
+  } catch {
+    ElMessage.error('获取课程列表失败')
+  }
 }
+
+async function onCourseChange() {
+  if (!selectedCourseId.value) {
+    students.value = []
+    return
+  }
+  try {
+    const r = await getCourseStudents(selectedCourseId.value)
+    students.value = r.data || []
+    students.value.forEach(s => {
+      scores[s.id] = 0
+      gradeTypes[s.id] = '百分制'
+      gradeLevels[s.id] = '优'
+      remarks[s.id] = ''
+    })
+  } catch {
+    ElMessage.error('获取学生列表失败')
+  }
+}
+
+async function doSubmitSingle(student: any) {
+  if (!scores[student.id] && gradeTypes[student.id] !== '等级制') {
+    ElMessage.warning('请输入分数')
+    return
+  }
+  try {
+    const data: any = {
+      studentId: student.studentId,
+      courseId: selectedCourseId.value,
+      semester: student.semester,
+      gradeType: gradeTypes[student.id],
+      score: gradeTypes[student.id] === '等级制' ? 0 : scores[student.id],
+      remark: remarks[student.id] || ''
+    }
+    if (gradeTypes[student.id] === '等级制') {
+      const levelMap: Record<string, number> = { '优': 90, '良': 80, '中': 70, '及格': 60, '不及格': 50 }
+      data.score = levelMap[gradeLevels[student.id]] || 0
+    }
+    await inputGrade(data)
+    ElMessage.success(`${student.studentName} 成绩录入成功`)
+  } catch {
+    ElMessage.error(`${student.studentName} 录入失败`)
+  }
+}
+
+async function submitAllGrades() {
+  for (const student of students.value) {
+    try {
+      await doSubmitSingle(student)
+    } catch {
+      // continue with others
+    }
+  }
+  ElMessage.success('批量录入完成')
+}
+
+onMounted(fetchCourses)
 </script>

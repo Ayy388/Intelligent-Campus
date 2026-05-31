@@ -7,6 +7,8 @@ import com.campus.module.growth.entity.*;
 import com.campus.module.growth.mapper.*;
 import com.campus.module.growth.service.GrowthService;
 import com.campus.module.sys.mapper.SysUserMapper;
+import com.campus.module.edu.entity.Course;
+import com.campus.module.edu.mapper.CourseMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ public class GrowthServiceImpl implements GrowthService {
     private final CheckInMapper checkinMapper;
     private final CheckInRecordMapper recordMapper;
     private final SysUserMapper userMapper;
+    private final CourseMapper courseMapper;
 
     @Override
     public StudentProfile getProfile(Long studentId) {
@@ -69,12 +72,22 @@ public class GrowthServiceImpl implements GrowthService {
                 com.campus.module.sys.entity.SysUser teacher = userMapper.selectById(c.getTeacherId());
                 if (teacher != null) c.setTeacherName(teacher.getRealName());
             }
+            if (c.getCourseId() != null) {
+                Course course = courseMapper.selectById(c.getCourseId());
+                if (course != null) c.setCourseName(course.getCourseName());
+            }
         }
         return result;
     }
 
     @Override
     public CheckIn createCheckIn(CheckIn c) {
+        if (c.getCourseId() != null) {
+            Course course = courseMapper.selectById(c.getCourseId());
+            if (course != null) {
+                c.setCourseName(course.getCourseName());
+            }
+        }
         checkinMapper.insert(c);
         return c;
     }

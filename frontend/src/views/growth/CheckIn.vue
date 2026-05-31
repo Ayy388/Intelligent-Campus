@@ -51,6 +51,11 @@
         <el-form-item label="签到标题">
           <el-input v-model="createForm.title" placeholder="请输入签到标题" />
         </el-form-item>
+        <el-form-item label="关联课程">
+          <el-select v-model="createForm.courseId" placeholder="选择课程（可选）" class="w-full" clearable>
+            <el-option v-for="c in teacherCourses" :key="c.id" :label="`${c.courseName} (${c.semester})`" :value="c.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="签到类型">
           <el-select v-model="createForm.checkinType" class="w-full">
             <el-option label="课程签到" value="course" />
@@ -89,6 +94,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { getCheckIns, createCheckIn, doCheckIn, getCheckInRecords, getCheckInStatus } from '@/api/growth'
+import { getTeacherCourses } from '@/api/edu'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
 
@@ -104,7 +110,8 @@ const pageSize = 10
 const checkedMap = ref<Record<number, boolean>>({})
 
 const createVisible = ref(false)
-const createForm = reactive({ title: '', checkinType: 'course', startTime: '', endTime: '' })
+const createForm = reactive({ title: '', checkinType: 'course', startTime: '', endTime: '', courseId: null as number | null })
+const teacherCourses = ref<any[]>([])
 
 const recordsVisible = ref(false)
 const records = ref<any[]>([])
@@ -154,6 +161,7 @@ function showCreate() {
   createForm.checkinType = 'course'
   createForm.startTime = ''
   createForm.endTime = ''
+  createForm.courseId = null
   createVisible.value = true
 }
 
@@ -202,5 +210,10 @@ async function viewRecords(c: any) {
   }
 }
 
-onMounted(fetchCheckIns)
+onMounted(() => {
+  fetchCheckIns()
+  if (isTeacher.value) {
+    getTeacherCourses().then(r => { teacherCourses.value = r.data || [] }).catch(() => {})
+  }
+})
 </script>

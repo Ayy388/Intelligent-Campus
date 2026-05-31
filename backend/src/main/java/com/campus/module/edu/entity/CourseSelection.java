@@ -15,4 +15,8 @@ public class CourseSelection {
     private Integer status;
     @TableField(exist = false)
     private String courseName;
+    @TableField(exist = false)
+    private String studentName;
+    @TableField(exist = false)
+    private Integer courseStatus;
 }

@@ -23,11 +23,12 @@
             <el-icon><Reading /></el-icon>
             <span>教务学习</span>
           </template>
-          <el-menu-item index="/edu/courses">课程列表</el-menu-item>
-          <el-menu-item index="/edu/schedule">我的课表</el-menu-item>
+          <el-menu-item v-if="userStore.role !== 'student'" index="/edu/courses">课程列表</el-menu-item>
+          <el-menu-item index="/edu/schedule">课程表</el-menu-item>
+          <el-menu-item v-if="userStore.role !== 'student'" index="/edu/course-students">课程学生名单</el-menu-item>
           <el-menu-item v-if="userStore.role === 'student'" index="/edu/selection">在线选课</el-menu-item>
           <el-menu-item index="/edu/grades">成绩查询</el-menu-item>
-          <el-menu-item v-if="userStore.role==='teacher' || userStore.role==='admin'" index="/edu/grade-entry">成绩录入</el-menu-item>
+          <el-menu-item v-if="userStore.role === 'teacher' || userStore.role === 'admin'" index="/edu/grade-entry">成绩录入</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="admin">
@@ -91,6 +92,7 @@
           </template>
           <el-menu-item index="/manage/users">用户管理</el-menu-item>
           <el-menu-item index="/manage/courses">课程管理</el-menu-item>
+          <el-menu-item index="/manage/semesters">学期管理</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </div>

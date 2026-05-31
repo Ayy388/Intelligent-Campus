@@ -9,6 +9,7 @@ public class CheckIn {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long teacherId;
+    private Long courseId;
     private String title;
     private String checkinType;
     private LocalDateTime startTime;
@@ -19,4 +20,6 @@ public class CheckIn {
     private LocalDateTime createTime;
     @TableField(exist = false)
     private String teacherName;
+    @TableField(exist = false)
+    private String courseName;
 }

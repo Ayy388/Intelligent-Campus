@@ -10,9 +10,18 @@
         <el-table-column label="容量" width="100">
           <template #default="{row}">{{ row.enrolled }}/{{ row.capacity }}</template>
         </el-table-column>
+        <el-table-column label="状态" width="80">
+          <template #default="{row}">
+            <el-tag :type="row.status===1?'success':'info'" size="small">{{ row.status===1?'选课中':'已确认' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="100">
           <template #default="{row}">
-            <el-button type="primary" size="small" @click="doSelect(row)" :disabled="row.enrolled>=row.capacity">选课</el-button>
+            <el-button
+              type="primary" size="small"
+              @click="doSelect(row)"
+              :disabled="row.enrolled>=row.capacity || row.status!==1"
+            >选课</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -22,9 +31,14 @@
       <el-table :data="mySelections">
         <el-table-column prop="courseName" label="课程" />
         <el-table-column prop="semester" label="学期" width="100" />
+        <el-table-column label="状态" width="80">
+          <template #default="{row}">
+            <el-tag v-if="row.courseStatus === 2" type="info" size="small">已确认</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="100">
           <template #default="{row}">
-            <el-button type="danger" size="small" @click="doDrop(row)">退课</el-button>
+            <el-button type="danger" size="small" @click="doDrop(row)" :disabled="row.courseStatus === 2">退课</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -42,7 +56,7 @@ const loading = ref(false)
 async function fetchData() {
   loading.value = true
   const [r1, r2] = await Promise.all([getCourses({ page: 1, size: 100 }), getSelections()])
-  courses.value = r1.data.records.filter((c: any) => c.status === 1)
+  courses.value = r1.data.records.filter((c: any) => c.status === 1 || c.status === 2)
   mySelections.value = r2.data
   loading.value = false
 }

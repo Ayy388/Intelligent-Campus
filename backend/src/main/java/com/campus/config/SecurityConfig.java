@@ -31,10 +31,19 @@ public class SecurityConfig {
 
                 // 教务: 课程增删改→teacher/admin, 查看→所有人
                 .requestMatchers(HttpMethod.GET, "/api/edu/courses", "/api/edu/courses/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/edu/courses").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses", "/api/edu/courses/**").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.PUT, "/api/edu/courses/**").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.DELETE, "/api/edu/courses/**").hasAnyRole("admin", "teacher")
-                .requestMatchers("/api/edu/selections/**").hasRole("student")
+                .requestMatchers(HttpMethod.GET, "/api/edu/selections").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/edu/selections/course/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/edu/selections").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/edu/selections/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/edu/courses/teacher").authenticated()
+                // 学期: 查看→所有人, 增删改→admin
+                .requestMatchers(HttpMethod.GET, "/api/edu/semesters", "/api/edu/semesters/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/edu/semesters").hasRole("admin")
+                .requestMatchers(HttpMethod.PUT, "/api/edu/semesters/**").hasRole("admin")
+                .requestMatchers(HttpMethod.DELETE, "/api/edu/semesters/**").hasRole("admin")
                 // 成绩: 查看→所有人, 录入→teacher/admin
                 .requestMatchers(HttpMethod.GET, "/api/edu/grades", "/api/edu/grades/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/edu/grades").hasAnyRole("admin", "teacher")

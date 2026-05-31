@@ -1,6 +1,20 @@
 <template>
   <el-card>
-    <template #header><div style="display:flex;justify-content:space-between"><span>课程管理</span><el-button type="primary" @click="showDialog()">添加课程</el-button></div></template>
+    <template #header>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span>课程管理</span>
+        <div style="display:flex;gap:8px">
+          <el-upload
+            :show-file-list="false"
+            :before-upload="handleImport"
+            accept=".csv"
+          >
+            <el-button>导入课程</el-button>
+          </el-upload>
+          <el-button type="primary" @click="showDialog()">添加课程</el-button>
+        </div>
+      </div>
+    </template>
     <el-table :data="tableData" v-loading="loading">
       <el-table-column prop="courseCode" label="编号" width="100" />
       <el-table-column prop="courseName" label="名称" />
@@ -11,7 +25,7 @@
       <el-table-column label="选课" width="100">
         <template #default="{row}">{{ row.enrolled || 0 }} / {{ row.capacity || 0 }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status===1?'success':row.status===2?'info':'warning'">{{ row.status===1?'可选':row.status===2?'结束':'未开放' }}</el-tag></template></el-table-column>
+      <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status===1?'success':row.status===2?'info':'warning'">{{ row.status===1?'选课中':row.status===2?'已确认':'未发布' }}</el-tag></template></el-table-column>
       <el-table-column label="操作" width="160">
         <template #default="{row}"><el-button size="small" @click="showDialog(row)">编辑</el-button><el-button size="small" type="danger" @click="del(row.id)">删除</el-button></template>
       </el-table-column>
@@ -27,7 +41,11 @@
         </el-form-item>
         <el-form-item label="学分"><el-input-number v-model="form.credit" :min="0" :step="0.5" /></el-form-item>
         <el-form-item label="学时"><el-input-number v-model="form.hours" :min="0" /></el-form-item>
-        <el-form-item label="学期"><el-input v-model="form.semester" placeholder="如 2026-春" /></el-form-item>
+        <el-form-item label="学期">
+          <el-select v-model="form.semester" placeholder="选择学期" clearable class="w-full">
+            <el-option v-for="s in semesters" :key="s.id" :label="s.xqqc" :value="s.xqjc" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="教室"><el-input v-model="form.classroom" placeholder="如 教3-201" /></el-form-item>
         <el-form-item label="上课时间">
           <el-row :gutter="10">
@@ -53,9 +71,19 @@
             </el-col>
           </el-row>
         </el-form-item>
+        <el-form-item label="周数范围">
+          <el-row :gutter="10">
+            <el-col :span="12">
+              <el-input-number v-model="form.startWeek" :min="1" :max="20" placeholder="起始周" />
+            </el-col>
+            <el-col :span="12">
+              <el-input-number v-model="form.endWeek" :min="1" :max="20" placeholder="结束周" />
+            </el-col>
+          </el-row>
+        </el-form-item>
         <el-form-item label="容量"><el-input-number v-model="form.capacity" :min="0" /></el-form-item>
         <el-form-item label="课程描述"><el-input v-model="form.description" type="textarea" :rows="2" placeholder="课程简介" /></el-form-item>
-        <el-form-item label="状态"><el-select v-model="form.status"><el-option :value="0" label="未开放" /><el-option :value="1" label="开放选课" /><el-option :value="2" label="已结束" /></el-select></el-form-item>
+        <el-form-item label="状态"><el-select v-model="form.status"><el-option :value="0" label="未发布（不可选课）" /><el-option :value="1" label="开放选课" /><el-option :value="2" label="已确认（不可选课/退课）" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>
@@ -64,7 +92,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
-import { getCourses, addCourse, updateCourse, deleteCourse } from '@/api/edu'
+import { getCourses, addCourse, updateCourse, deleteCourse, importCourses, getSemesters } from '@/api/edu'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
@@ -73,23 +101,26 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
 const teachers = ref<any[]>([])
+const semesters = ref<any[]>([])
 const form = reactive({
-  courseCode: '',
-  courseName: '',
-  teacherId: null as number | null,
-  credit: 0,
-  hours: 0,
-  semester: '',
-  classroom: '',
-  schedule: '',
-  capacity: 0,
-  description: '',
-  status: 0
+    courseCode: '',
+    courseName: '',
+    teacherId: null as number | null,
+    credit: 0,
+    hours: 0,
+    semester: '',
+    classroom: '',
+    schedule: '',
+    startWeek: 1,
+    endWeek: 20,
+    capacity: 0,
+    description: '',
+    status: 0
 })
 
 const scheduleForm = reactive({
-  day: null as number | null,
-  timeSlot: null as number | null
+    day: null as number | null,
+    timeSlot: null as number | null
 })
 
 function parseSchedule() {
@@ -128,6 +159,13 @@ async function fetchTeachers() {
   teachers.value = (r.data.records || []).filter((u: any) => u.roleName === '教师')
 }
 
+async function fetchSemesters() {
+  try {
+    const r = await getSemesters()
+    semesters.value = r.data || []
+  } catch {}
+}
+
 function showDialog(row?: any) {
   editId.value = row?.id || null
   Object.assign(form, row ? { ...row } : {
@@ -139,6 +177,8 @@ function showDialog(row?: any) {
     semester: '',
     classroom: '',
     schedule: '',
+    startWeek: 1,
+    endWeek: 20,
     capacity: 0,
     description: '',
     status: 0
@@ -163,11 +203,29 @@ async function save() {
 }
 
 async function del(id: number) {
-  await ElMessageBox.confirm('确认删除?', '提示', { type: 'warning' })
-  await deleteCourse(id)
-  ElMessage.success('删除成功')
-  fetch()
+  try {
+    await ElMessageBox.confirm('确认删除?', '提示', { type: 'warning' })
+    await deleteCourse(id)
+    ElMessage.success('删除成功')
+    fetch()
+  } catch (e: any) {
+    if (e !== 'cancel' && e?.message) ElMessage.error(e.message)
+  }
 }
 
-onMounted(() => { fetch(); fetchTeachers() })
+async function handleImport(file: File) {
+  try {
+    loading.value = true
+    const res = await importCourses(file)
+    ElMessage.success(res.data || '导入成功')
+    fetch()
+  } catch (e) {
+    ElMessage.error('导入失败')
+  } finally {
+    loading.value = false
+  }
+  return false
+}
+
+onMounted(() => { fetch(); fetchTeachers(); fetchSemesters() })
 </script>

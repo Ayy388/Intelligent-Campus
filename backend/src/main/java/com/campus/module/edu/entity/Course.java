@@ -17,6 +17,8 @@ public class Course {
     private String semester;
     private String classroom;
     private String schedule;
+    private Integer startWeek;
+    private Integer endWeek;
     private Integer capacity;
     private Integer enrolled;
     private String description;

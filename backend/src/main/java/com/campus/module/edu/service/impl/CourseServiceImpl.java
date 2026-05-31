@@ -12,6 +12,7 @@ import com.campus.module.edu.mapper.CourseSelectionMapper;
 import com.campus.module.edu.mapper.GradeMapper;
 import com.campus.module.edu.service.CourseService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -23,6 +24,19 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     private final CourseSelectionMapper selMapper;
     private final GradeMapper gradeMapper;
     private final com.campus.module.sys.mapper.SysUserMapper userMapper;
+    private final JdbcTemplate jdbcTemplate;
+
+    @Override
+    @Transactional
+    public void confirmCourse(Long courseId, Long teacherId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() == 2) throw new BusinessException("该课程已确认，无需重复确认");
+        if (course.getStatus() != 1) throw new BusinessException("该课程未开放选课，无法确认");
+        if (!course.getTeacherId().equals(teacherId)) throw new BusinessException("只能确认自己授课的课程");
+        course.setStatus(2);
+        courseMapper.updateById(course);
+    }
 
     @Override
     public Page<Course> pageWithTeacher(int page, int size, String keyword, String semester) {
@@ -74,12 +88,12 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (sel == null || !sel.getStudentId().equals(studentId))
             throw new BusinessException("选课记录不存在");
         if (sel.getStatus() == 0) throw new BusinessException("已退课");
-        sel.setStatus(0); selMapper.updateById(sel);
         Course course = courseMapper.selectById(sel.getCourseId());
-        if (course != null) {
-            course.setEnrolled(Math.max(0, course.getEnrolled() - 1));
-            courseMapper.updateById(course);
-        }
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() == 2) throw new BusinessException("课程已确认，无法退课");
+        sel.setStatus(0); selMapper.updateById(sel);
+        course.setEnrolled(Math.max(0, course.getEnrolled() - 1));
+        courseMapper.updateById(course);
     }
 
     @Override
@@ -89,9 +103,53 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .eq(CourseSelection::getStatus, 1));
         for (CourseSelection s : list) {
             Course course = courseMapper.selectById(s.getCourseId());
-            if (course != null) s.setCourseName(course.getCourseName());
+            if (course != null) {
+                s.setCourseName(course.getCourseName());
+                s.setCourseStatus(course.getStatus());
+            }
         }
         return list;
+    }
+
+    @Override
+    public List<CourseSelection> getCourseStudents(Long courseId) {
+        List<CourseSelection> list = selMapper.selectList(new LambdaQueryWrapper<CourseSelection>()
+                .eq(CourseSelection::getCourseId, courseId)
+                .eq(CourseSelection::getStatus, 1));
+        for (CourseSelection s : list) {
+            Course course = courseMapper.selectById(s.getCourseId());
+            if (course != null) s.setCourseName(course.getCourseName());
+            com.campus.module.sys.entity.SysUser student = userMapper.selectById(s.getStudentId());
+            if (student != null) s.setStudentName(student.getRealName());
+        }
+        return list;
+    }
+
+    @Override
+    public List<Course> getTeacherCourses(Long teacherId) {
+        return courseMapper.selectList(new LambdaQueryWrapper<Course>()
+                .eq(Course::getTeacherId, teacherId)
+                .eq(Course::getStatus, 1));
+    }
+
+    @Override
+    @Transactional
+    public void deleteCourse(Long courseId) {
+        Long activeCount = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
+                .eq(CourseSelection::getCourseId, courseId)
+                .eq(CourseSelection::getStatus, 1));
+        if (activeCount > 0) {
+            throw new BusinessException("该课程还有学生正在选课，无法删除");
+        }
+        Long gradeCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
+                .eq(Grade::getCourseId, courseId));
+        if (gradeCount > 0) {
+            throw new BusinessException("该课程已有成绩记录，无法删除");
+        }
+        jdbcTemplate.update("DELETE FROM edu_course_selection WHERE course_id = ?", courseId);
+        jdbcTemplate.update("DELETE FROM edu_grade WHERE course_id = ?", courseId);
+        jdbcTemplate.update("DELETE FROM growth_checkin WHERE course_id = ?", courseId);
+        jdbcTemplate.update("DELETE FROM edu_course WHERE id = ?", courseId);
     }
 
     @Override
@@ -128,35 +186,54 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
-    public List<Course> getMySchedule(Long userId, String role) {
+    public List<Course> getMySchedule(Long userId, String role, String semester, Integer week) {
+        List<Course> courses;
         if ("student".equals(role)) {
-            List<CourseSelection> selections = selMapper.selectList(
-                new LambdaQueryWrapper<CourseSelection>()
-                    .eq(CourseSelection::getStudentId, userId)
-                    .eq(CourseSelection::getStatus, 1));
+            LambdaQueryWrapper<CourseSelection> selWrapper = new LambdaQueryWrapper<CourseSelection>()
+                .eq(CourseSelection::getStudentId, userId)
+                .eq(CourseSelection::getStatus, 1);
+            if (semester != null && !semester.isEmpty()) {
+                selWrapper.eq(CourseSelection::getSemester, semester);
+            }
+            List<CourseSelection> selections = selMapper.selectList(selWrapper);
             List<Long> courseIds = selections.stream()
                 .map(CourseSelection::getCourseId)
                 .collect(java.util.stream.Collectors.toList());
             if (courseIds.isEmpty()) return List.of();
-            List<Course> courses = courseMapper.selectList(
-                new LambdaQueryWrapper<Course>().in(Course::getId, courseIds));
-            for (Course c : courses) {
-                if (c.getTeacherId() != null) {
-                    var teacher = userMapper.selectById(c.getTeacherId());
-                    if (teacher != null) c.setTeacherName(teacher.getRealName());
-                }
+            
+            LambdaQueryWrapper<Course> courseWrapper = new LambdaQueryWrapper<Course>()
+                .in(Course::getId, courseIds);
+            if (semester != null && !semester.isEmpty()) {
+                courseWrapper.eq(Course::getSemester, semester);
             }
-            return courses;
+            courses = courseMapper.selectList(courseWrapper);
         } else {
-            List<Course> courses = courseMapper.selectList(
-                new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, userId));
-            for (Course c : courses) {
-                if (c.getTeacherId() != null) {
-                    var teacher = userMapper.selectById(c.getTeacherId());
-                    if (teacher != null) c.setTeacherName(teacher.getRealName());
-                }
+            LambdaQueryWrapper<Course> courseWrapper = new LambdaQueryWrapper<Course>()
+                .eq(Course::getTeacherId, userId);
+            if (semester != null && !semester.isEmpty()) {
+                courseWrapper.eq(Course::getSemester, semester);
             }
-            return courses;
+            courses = courseMapper.selectList(courseWrapper);
         }
+        
+        // 按周数筛选
+        if (week != null) {
+            courses = courses.stream()
+                .filter(c -> {
+                    Integer startWeek = c.getStartWeek() != null ? c.getStartWeek() : 1;
+                    Integer endWeek = c.getEndWeek() != null ? c.getEndWeek() : 20;
+                    return week >= startWeek && week <= endWeek;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        }
+        
+        // 填充教师姓名
+        for (Course c : courses) {
+            if (c.getTeacherId() != null) {
+                var teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return courses;
     }
 }

@@ -11,8 +11,11 @@ import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/edu")
@@ -37,7 +40,15 @@ public class CourseController {
     public Result<Course> getOne(@PathVariable Long id) { return Result.ok(courseService.getById(id)); }
 
     @PostMapping("/courses")
-    public Result<Course> add(@RequestBody Course c) { courseService.save(c); return Result.ok(c); }
+    public Result<Course> add(@RequestBody Course c) {
+        Course existing = courseService.lambdaQuery()
+            .eq(Course::getCourseCode, c.getCourseCode()).one();
+        if (existing != null) {
+            return Result.error(400, "课程编号 '" + c.getCourseCode() + "' 已存在");
+        }
+        courseService.save(c);
+        return Result.ok(c);
+    }
 
     @PutMapping("/courses/{id}")
     public Result<Course> update(@PathVariable Long id, @RequestBody Course c) {
@@ -45,7 +56,14 @@ public class CourseController {
     }
 
     @DeleteMapping("/courses/{id}")
-    public Result<Void> delete(@PathVariable Long id) { courseService.removeById(id); return Result.ok(); }
+    public Result<Void> delete(@PathVariable Long id) { courseService.deleteCourse(id); return Result.ok(); }
+
+    @PostMapping("/courses/{id}/confirm")
+    public Result<Void> confirm(@PathVariable Long id, Authentication auth) {
+        Claims claims = (Claims) auth.getDetails();
+        courseService.confirmCourse(id, Long.parseLong(claims.getSubject()));
+        return Result.ok();
+    }
 
     @GetMapping("/selections")
     public Result<List<CourseSelection>> mySelections(Authentication auth) {
@@ -86,11 +104,71 @@ public class CourseController {
         return Result.ok(courseService.getCourseGrades(courseId));
     }
 
+    @GetMapping("/selections/course/{courseId}")
+    public Result<List<CourseSelection>> courseStudents(@PathVariable Long courseId) {
+        return Result.ok(courseService.getCourseStudents(courseId));
+    }
+
+    @GetMapping("/courses/teacher")
+    public Result<List<Course>> teacherCourses(Authentication auth) {
+        Claims claims = (Claims) auth.getDetails();
+        return Result.ok(courseService.getTeacherCourses(Long.parseLong(claims.getSubject())));
+    }
+
     @GetMapping("/schedule")
-    public Result<List<Course>> schedule(Authentication auth) {
+    public Result<List<Course>> schedule(Authentication auth,
+            @RequestParam(required = false) String semester,
+            @RequestParam(required = false) Integer week) {
         Claims claims = (Claims) auth.getDetails();
         Long userId = Long.parseLong(claims.getSubject());
         String role = claims.get("role", String.class);
-        return Result.ok(courseService.getMySchedule(userId, role));
+        return Result.ok(courseService.getMySchedule(userId, role, semester, week));
+    }
+    
+    @PostMapping("/courses/import")
+    public Result<String> importCourses(@RequestParam("file") MultipartFile file) {
+        try {
+            // 简单的CSV解析逻辑
+            String content = new String(file.getBytes());
+            String[] lines = content.split("\n");
+            List<Course> courses = new ArrayList<>();
+            
+            // 跳过表头
+            for (int i = 1; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (line.isEmpty()) continue;
+                
+                String[] parts = line.split(",");
+                if (parts.length >= 8) {
+                    Course course = new Course();
+                    course.setCourseCode(parts[0].trim());
+                    course.setCourseName(parts[1].trim());
+                    course.setCredit(BigDecimal.valueOf(Double.parseDouble(parts[2].trim())));
+                    course.setHours(Integer.parseInt(parts[3].trim()));
+                    course.setSemester(parts[4].trim());
+                    course.setClassroom(parts[5].trim());
+                    course.setStartWeek(Integer.parseInt(parts[6].trim()));
+                    course.setEndWeek(Integer.parseInt(parts[7].trim()));
+                    if (parts.length > 8) {
+                        course.setCapacity(Integer.parseInt(parts[8].trim()));
+                    }
+                    if (parts.length > 9) {
+                        course.setDescription(parts[9].trim());
+                    }
+                    course.setStatus(0);
+                    courses.add(course);
+                }
+            }
+            
+            // 保存课程
+            for (Course course : courses) {
+                courseService.save(course);
+            }
+            
+            return Result.ok("成功导入 " + courses.size() + " 门课程");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.error("导入失败: " + e.getMessage());
+        }
     }
 }

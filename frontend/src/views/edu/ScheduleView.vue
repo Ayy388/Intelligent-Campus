@@ -2,20 +2,30 @@
   <div class="animate__animated animate__fadeInUp">
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-xl font-bold text-ink">我的课表</h2>
-      <div class="flex items-center gap-2">
-        <el-input
-          v-model="currentWeek"
-          type="number"
-          :min="1"
-          :max="20"
-          class="w-28"
-          @change="fetchSchedule"
-        />
-        <span class="text-ash text-sm">周</span>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <el-select v-model="currentSemester" placeholder="选择学期" class="w-44" @change="fetchSchedule">
+            <el-option v-for="s in semesters" :key="s.id" :label="s.xqqc" :value="s.xqjc" />
+          </el-select>
+        </div>
+        <div class="flex items-center gap-2">
+          <el-input
+            v-model="currentWeek"
+            type="number"
+            :min="1"
+            :max="20"
+            class="w-28"
+            @change="fetchSchedule"
+          />
+          <span class="text-ash text-sm">周</span>
+        </div>
+        <el-button type="primary" @click="exportSchedule">
+          导出课表
+        </el-button>
       </div>
     </div>
 
-    <div class="bg-white rounded-xl border border-soft p-6">
+    <div class="schedule-container bg-white rounded-xl border border-soft p-6">
       <div class="grid grid-cols-8 gap-2 mb-4">
         <div class="text-center text-sm font-semibold text-ash py-2">时间</div>
         <div v-for="day in weekDays" :key="day" class="text-center text-sm font-semibold text-ash py-2">
@@ -84,9 +94,11 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { getSchedule } from '@/api/edu'
+import { getSchedule, getSemesters } from '@/api/edu'
 
 const currentWeek = ref(1)
+const currentSemester = ref('')
+const semesters = ref<any[]>([])
 const courses = ref<any[]>([])
 const detailVisible = ref(false)
 const currentCourse = ref<any>(null)
@@ -129,12 +141,69 @@ function showDetail(course: any) {
 
 async function fetchSchedule() {
   try {
-    const res = await getSchedule()
+    const res = await getSchedule(currentSemester.value, currentWeek.value)
     courses.value = res.data || []
   } catch {
     ElMessage.error('获取课表失败')
   }
 }
 
-onMounted(fetchSchedule)
+async function exportSchedule() {
+  try {
+    // 使用html2canvas将课表导出为图片
+    const scheduleElement = document.querySelector('.schedule-container') as HTMLElement
+    if (!scheduleElement) {
+      ElMessage.error('找不到课表元素')
+      return
+    }
+    
+    // 简单的文本导出
+    let text = `课表 - ${currentSemester.value} 第${currentWeek.value}周\n\n`
+    const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    const timeSlots = [
+      { id: 1, name: '第1-2节', start: '08:00', end: '09:40' },
+      { id: 2, name: '第3-4节', start: '10:00', end: '11:40' },
+      { id: 3, name: '第5-6节', start: '14:00', end: '15:40' },
+      { id: 4, name: '第7-8节', start: '16:00', end: '17:40' },
+      { id: 5, name: '第9-10节', start: '19:00', end: '20:40' }
+    ]
+    
+    for (const timeSlot of timeSlots) {
+      text += `\n${timeSlot.name} (${timeSlot.start}-${timeSlot.end})\n`
+      for (let day = 1; day <= 7; day++) {
+        const dayCourses = getCourseForSlot(day, timeSlot.id)
+        if (dayCourses.length > 0) {
+          text += `  ${weekDays[day-1]}: `
+          text += dayCourses.map(c => `${c.courseName} - ${c.teacherName || '未知'} @ ${c.classroom || '未知'}`).join(', ')
+          text += '\n'
+        }
+      }
+    }
+    
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `课表_${currentSemester.value}_第${currentWeek.value}周.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('课表导出成功')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('课表导出失败')
+  }
+}
+
+onMounted(async () => {
+  try {
+    const r = await getSemesters({ status: 'active' })
+    semesters.value = r.data || []
+    const active = semesters.value.find((s: any) => s.status === 1)
+    if (active) {
+      currentSemester.value = active.xqjc
+    }
+  } catch {}
+  fetchSchedule()
+})
 </script>

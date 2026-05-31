@@ -12,8 +12,12 @@ public interface CourseService extends IService<Course> {
     CourseSelection selectCourse(Long studentId, Long courseId, String semester);
     void dropCourse(Long selectionId, Long studentId);
     List<CourseSelection> getMySelections(Long studentId);
+    List<CourseSelection> getCourseStudents(Long courseId);
     void inputGrade(Grade grade);
     List<Grade> getStudentGrades(Long studentId);
     List<Grade> getCourseGrades(Long courseId);
-    List<Course> getMySchedule(Long userId, String role);
+    List<Course> getTeacherCourses(Long teacherId);
+    void confirmCourse(Long courseId, Long teacherId);
+    void deleteCourse(Long courseId);
+    List<Course> getMySchedule(Long userId, String role, String semester, Integer week);
 }

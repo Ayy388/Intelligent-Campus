@@ -58,12 +58,29 @@ public class DataInitializer implements CommandLineRunner {
                 semester VARCHAR(20) NOT NULL,
                 classroom VARCHAR(100),
                 schedule VARCHAR(200),
+                start_week INT DEFAULT 1,
+                end_week INT DEFAULT 20,
                 capacity INT DEFAULT 0,
                 enrolled INT DEFAULT 0,
                 description TEXT,
                 status TINYINT DEFAULT 0,
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
+            )
+        """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS edu_semester (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                xn VARCHAR(20) NOT NULL,
+                xqjc VARCHAR(10) NOT NULL,
+                xqqc VARCHAR(50) NOT NULL,
+                ksrq DATE NOT NULL,
+                jsrq DATE NOT NULL,
+                zc INT DEFAULT 20,
+                status TINYINT DEFAULT 1,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (xn, xqjc)
             )
         """);
 
@@ -408,6 +425,17 @@ public class DataInitializer implements CommandLineRunner {
             jdbcTemplate.update("INSERT INTO sys_role (role_code, role_name) VALUES ('admin','管理员')");
         }
 
+        // 数据库迁移：为已有表添加新列（如果不存在）
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN start_week INT DEFAULT 1");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN end_week INT DEFAULT 20");
+        } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE growth_checkin ADD COLUMN course_id BIGINT");
+        } catch (Exception ignored) {}
+
         Integer userCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sys_user", Integer.class);
         if (userCount != null && userCount == 0) {
             String encodedPassword = passwordEncoder.encode("123456");
@@ -494,35 +522,48 @@ public class DataInitializer implements CommandLineRunner {
             Long teacherId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 't001'", Long.class);
             if (teacherId != null) {
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS101", "Java程序设计", teacherId, 4.0, 64, "2026-春", "教3-201", 
-                    "{\"day\":1,\"timeSlot\":1}", 50, 0, "Java基础编程入门课程", 1);
+                    "{\"day\":1,\"timeSlot\":1}", 1, 20, 50, 0, "Java基础编程入门课程", 1);
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS102", "数据结构与算法", teacherId, 3.5, 56, "2026-春", "教3-302", 
-                    "{\"day\":2,\"timeSlot\":2}", 45, 0, "算法与数据结构课程", 1);
+                    "{\"day\":2,\"timeSlot\":2}", 1, 20, 45, 0, "算法与数据结构课程", 1);
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS201", "操作系统", teacherId, 3.0, 48, "2026-春", "教4-105", 
-                    "{\"day\":3,\"timeSlot\":3}", 40, 0, "操作系统原理课程", 1);
+                    "{\"day\":3,\"timeSlot\":3}", 1, 20, 40, 0, "操作系统原理课程", 1);
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "ENG101", "大学英语", teacherId, 3.0, 48, "2026-春", "外语楼-202", 
-                    "{\"day\":4,\"timeSlot\":1}", 50, 0, "大学英语读写译", 1);
+                    "{\"day\":4,\"timeSlot\":1}", 1, 20, 50, 0, "大学英语读写译", 1);
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "MATH201", "高等数学", teacherId, 5.0, 80, "2026-春", "教1-101", 
-                    "{\"day\":5,\"timeSlot\":2}", 100, 0, "高等数学微积分", 1);
+                    "{\"day\":5,\"timeSlot\":2}", 1, 20, 100, 0, "高等数学微积分", 1);
                 
                 jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     "CS301", "计算机网络", teacherId, 3.0, 48, "2026-春", "教3-401", 
-                    "{\"day\":2,\"timeSlot\":4}", 35, 0, "计算机网络基础知识", 1);
+                    "{\"day\":2,\"timeSlot\":4}", 1, 20, 35, 0, "计算机网络基础知识", 1);
             }
+        }
+
+        Integer semesterCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM edu_semester", Integer.class);
+        if (semesterCount != null && semesterCount == 0) {
+            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+                "2025-2026学年", "202502", "2025-2026学年第二学期", java.sql.Date.valueOf("2026-03-02"), java.sql.Date.valueOf("2026-09-04"), 29, 1);
+            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+                "2025-2026学年", "202501", "2025-2026学年第一学期", java.sql.Date.valueOf("2025-09-08"), java.sql.Date.valueOf("2026-02-15"), 23, 0);
+            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+                "2024-2025学年", "202402", "2024-2025学年第二学期", java.sql.Date.valueOf("2025-02-17"), java.sql.Date.valueOf("2025-09-03"), 29, 0);
+            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+                "2024-2025学年", "202401", "2024-2025学年第一学期", java.sql.Date.valueOf("2024-09-02"), java.sql.Date.valueOf("2025-01-17"), 20, 0);
         }
     }
 }
