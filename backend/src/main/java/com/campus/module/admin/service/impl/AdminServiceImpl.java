@@ -11,21 +11,36 @@ import com.campus.module.sys.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AdminServiceImpl implements AdminService {
     private final NotificationMapper notiMapper;
+    private final NotificationReadMapper notiReadMapper;
     private final LeaveApplicationMapper leaveMapper;
-    private final GuideMapper guideMapper;
     private final SysUserMapper userMapper;
 
     @Override
-    public Page<Notification> pageNotifications(int page, int size, String category) {
+    public Page<Notification> pageNotifications(int page, int size, String category, Long userId) {
         LambdaQueryWrapper<Notification> w = new LambdaQueryWrapper<>();
         if (category != null && !category.isEmpty()) w.eq(Notification::getCategory, category);
         w.orderByDesc(Notification::getIsTop).orderByDesc(Notification::getCreateTime);
-        return notiMapper.selectPage(new Page<>(page, size), w);
+        Page<Notification> result = notiMapper.selectPage(new Page<>(page, size), w);
+
+        if (userId != null && !result.getRecords().isEmpty()) {
+            Set<Long> readIds = notiReadMapper.selectList(
+                    new LambdaQueryWrapper<NotificationRead>()
+                            .eq(NotificationRead::getUserId, userId)
+                            .in(NotificationRead::getNotificationId,
+                                result.getRecords().stream().map(Notification::getId).collect(Collectors.toList())))
+                    .stream().map(NotificationRead::getNotificationId).collect(Collectors.toSet());
+            for (Notification n : result.getRecords()) {
+                n.setRead(readIds.contains(n.getId()));
+            }
+        }
+        return result;
     }
 
     @Override
@@ -48,7 +63,7 @@ public class AdminServiceImpl implements AdminService {
     public Page<LeaveApplication> pageLeaves(Long userId, String role, int page, int size) {
         LambdaQueryWrapper<LeaveApplication> w = new LambdaQueryWrapper<>();
         if ("student".equals(role)) w.eq(LeaveApplication::getStudentId, userId);
-        else if ("teacher".equals(role) || "admin".equals(role))
+        else if ("teacher".equals(role) || "admin".equals(role) || "counselor".equals(role))
             w.and(w2 -> w2.eq(LeaveApplication::getTeacherId, userId).or().isNull(LeaveApplication::getTeacherId));
         w.orderByDesc(LeaveApplication::getApplyTime);
         Page<LeaveApplication> result = leaveMapper.selectPage(new Page<>(page, size), w);
@@ -100,22 +115,24 @@ public class AdminServiceImpl implements AdminService {
         leaveMapper.deleteById(id);
     }
 
-    @Override
-    public Page<Guide> pageGuides(int page, int size, String category) {
-        LambdaQueryWrapper<Guide> w = new LambdaQueryWrapper<>();
-        if (category != null && !category.isEmpty()) w.eq(Guide::getCategory, category);
-        w.orderByDesc(Guide::getCreateTime);
-        return guideMapper.selectPage(new Page<>(page, size), w);
+    public long countUnreadNotifications(Long userId) {
+        long total = notiMapper.selectCount(new LambdaQueryWrapper<>());
+        long read = notiReadMapper.selectCount(new LambdaQueryWrapper<NotificationRead>()
+            .eq(NotificationRead::getUserId, userId));
+        return total - read;
     }
 
     @Override
-    public Guide getGuideById(Long id) {
-        Guide g = guideMapper.selectById(id);
-        if (g != null) { g.setViewCount(g.getViewCount() + 1); guideMapper.updateById(g); }
-        return g;
+    public void markNotificationRead(Long notificationId, Long userId) {
+        long count = notiReadMapper.selectCount(new LambdaQueryWrapper<NotificationRead>()
+            .eq(NotificationRead::getNotificationId, notificationId)
+            .eq(NotificationRead::getUserId, userId));
+        if (count == 0) {
+            NotificationRead nr = new NotificationRead();
+            nr.setNotificationId(notificationId);
+            nr.setUserId(userId);
+            nr.setReadTime(java.time.LocalDateTime.now());
+            notiReadMapper.insert(nr);
+        }
     }
-
-    @Override public void saveGuide(Guide g) { guideMapper.insert(g); }
-    @Override public void updateGuide(Long id, Guide g) { g.setId(id); guideMapper.updateById(g); }
-    @Override public void deleteGuide(Long id) { guideMapper.deleteById(id); }
 }

@@ -7,3 +7,11 @@ export function login(username: string, password: string) {
 export function getCurrentUser() {
   return request.get('/auth/me')
 }
+
+export function updateProfile(data: { realName?: string; phone?: string; email?: string; gender?: number }) {
+  return request.put('/auth/profile', data)
+}
+
+export function changePassword(oldPassword: string, newPassword: string) {
+  return request.put('/auth/password', { oldPassword, newPassword })
+}

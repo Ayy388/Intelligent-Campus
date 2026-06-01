@@ -48,3 +48,6 @@ export function applyBooking(data: any) { return request.post('/club/venue/booki
 export function approveBooking(id: number, status: number, reason?: string) {
   return request.put(`/club/venue/booking/${id}`, null, { params: { status, reason } })
 }
+export function addVenue(data: any) { return request.post('/club/venue/add', data) }
+export function updateVenue(id: number, data: any) { return request.put(`/club/venue/${id}`, data) }
+export function deleteVenue(id: number) { return request.delete(`/club/venue/${id}`) }

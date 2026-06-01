@@ -17,4 +17,5 @@ public interface GrowthService {
     StudentProfile getProfileByStudentId(Long studentId);
     void deleteCheckIn(Long id);
     Page<CheckIn> getCheckInsForStudent(Long studentId, int page, int size);
+    long countUncheckedCheckIns(Long studentId);
 }

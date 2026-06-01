@@ -25,15 +25,30 @@ public class AdminController {
     }
 
     @GetMapping("/notifications")
-    public Result<PageResult<Notification>> listNotis(@RequestParam(defaultValue = "1") int page,
+    public Result<PageResult<Notification>> listNotis(Authentication auth,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String category) {
-        return toPageResult(adminService.pageNotifications(page, size, category));
+        return toPageResult(adminService.pageNotifications(page, size, category,
+                auth != null ? getUserId(auth) : null));
     }
 
     @GetMapping("/notifications/{id}")
-    public Result<Notification> getNoti(@PathVariable Long id) {
-        return Result.ok(adminService.getNotificationById(id));
+    public Result<Notification> getNoti(@PathVariable Long id, Authentication auth) {
+        Notification n = adminService.getNotificationById(id);
+        if (n != null) adminService.markNotificationRead(id, getUserId(auth));
+        return Result.ok(n);
+    }
+
+    @GetMapping("/notifications/unread-count")
+    public Result<Long> unreadCount(Authentication auth) {
+        return Result.ok(adminService.countUnreadNotifications(getUserId(auth)));
+    }
+
+    @PostMapping("/notifications/{id}/read")
+    public Result<Void> markRead(@PathVariable Long id, Authentication auth) {
+        adminService.markNotificationRead(id, getUserId(auth));
+        return Result.ok();
     }
 
     @PostMapping("/notifications")
@@ -73,37 +88,6 @@ public class AdminController {
             @RequestParam Integer status, @RequestParam(required = false) String reason) {
         adminService.approveLeave(id, getUserId(auth), status,
                 reason != null ? reason : "");
-        return Result.ok();
-    }
-
-    @GetMapping("/guides")
-    public Result<PageResult<Guide>> listGuides(@RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String category) {
-        return toPageResult(adminService.pageGuides(page, size, category));
-    }
-
-    @GetMapping("/guides/{id}")
-    public Result<Guide> getGuide(@PathVariable Long id) {
-        return Result.ok(adminService.getGuideById(id));
-    }
-
-    @PostMapping("/guides")
-    public Result<Void> addGuide(@RequestBody Guide g, Authentication auth) {
-        g.setPublisherId(getUserId(auth));
-        adminService.saveGuide(g);
-        return Result.ok();
-    }
-
-    @PutMapping("/guides/{id}")
-    public Result<Void> updateGuide(@PathVariable Long id, @RequestBody Guide g) {
-        adminService.updateGuide(id, g);
-        return Result.ok();
-    }
-
-    @DeleteMapping("/guides/{id}")
-    public Result<Void> delGuide(@PathVariable Long id) {
-        adminService.deleteGuide(id);
         return Result.ok();
     }
 

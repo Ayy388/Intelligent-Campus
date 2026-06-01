@@ -26,7 +26,7 @@ public interface ClubService {
     void updateActivitySummary(Long id, String summary, String images);
 
     List<Venue> getVenues();
-    Page<VenueBooking> pageBookings(Long userId, String role, int page, int size);
+    Page<VenueBooking> pageBookings(Long userId, String role, int page, int size, Integer status);
     void applyBooking(VenueBooking b);
     void approveBooking(Long id, Long approverId, Integer status, String reason);
     void deleteClub(Long id);

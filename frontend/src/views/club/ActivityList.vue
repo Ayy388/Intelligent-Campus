@@ -27,10 +27,10 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2.5 mb-2">
               <span class="text-base font-bold text-ink truncate">{{ a.title }}</span>
-              <span v-if="a.status===0" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200/60 shrink-0">待审核</span>
+              <span v-if="a.status===0" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-600 border border-amber-200/60 shrink-0">审核中</span>
               <span v-else-if="a.status===1" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60 shrink-0">报名中</span>
-              <span v-else-if="a.status===2" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200/60 shrink-0">进行中</span>
-              <span v-else-if="a.status===3" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-400 border border-gray-200/60 shrink-0">已结束</span>
+              <span v-else-if="a.status===3" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200/60 shrink-0">活动中</span>
+              <span v-else-if="a.status===4" class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-400 border border-gray-200/60 shrink-0">已结束</span>
               <span v-else class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-400 border border-gray-200/60 shrink-0">未知</span>
             </div>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mist mb-2.5">

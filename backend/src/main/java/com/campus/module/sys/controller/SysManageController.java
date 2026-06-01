@@ -3,9 +3,7 @@ package com.campus.module.sys.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.common.PageResult;
 import com.campus.common.Result;
-import com.campus.module.sys.entity.SysRole;
 import com.campus.module.sys.entity.SysUser;
-import com.campus.module.sys.mapper.SysRoleMapper;
 import com.campus.module.sys.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,15 +14,15 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class SysManageController {
     private final SysUserService userService;
-    private final SysRoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/users")
     public Result<PageResult<SysUser>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(required = false) String keyword) {
-        Page<SysUser> p = userService.pageUsers(page, size, keyword);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long roleId) {
+        Page<SysUser> p = userService.pageUsers(page, size, keyword, roleId);
         PageResult<SysUser> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());
         pr.setPage(p.getCurrent()); pr.setSize(p.getSize()); pr.setPages(p.getPages());
@@ -62,10 +60,7 @@ public class SysManageController {
     @GetMapping("/users/{id}")
     public Result<SysUser> getUser(@PathVariable Long id) {
         SysUser user = userService.getById(id);
-        if (user != null) {
-            SysRole role = roleMapper.selectById(user.getRoleId());
-            if (role != null) user.setRoleName(role.getRoleName());
-        }
+        if (user != null) userService.resolveUserExtra(user);
         return Result.ok(user);
     }
 

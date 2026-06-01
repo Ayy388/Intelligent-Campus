@@ -52,7 +52,7 @@ public class GrowthController {
         if ("student".equals(role)) {
             result = growthService.getCheckInsForStudent(userId, page, size);
         } else {
-            Long teacherId = "teacher".equals(role) ? userId : null;
+            Long teacherId = "teacher".equals(role) || "counselor".equals(role) ? userId : null;
             result = growthService.pageCheckIns(teacherId, page, size);
         }
         return toPage(result);
@@ -91,6 +91,13 @@ public class GrowthController {
     public Result<Void> closeCheckIn(@PathVariable Long id, Authentication auth) {
         growthService.closeCheckIn(id, getUserId(auth));
         return Result.ok();
+    }
+
+    @GetMapping("/checkin/unchecked-count")
+    public Result<Long> uncheckedCount(Authentication auth) {
+        String role = ((Claims) auth.getDetails()).get("role", String.class);
+        if (!"student".equals(role)) return Result.ok(0L);
+        return Result.ok(growthService.countUncheckedCheckIns(getUserId(auth)));
     }
 
     private <T> Result<PageResult<T>> toPage(Page<T> p) {

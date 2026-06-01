@@ -20,6 +20,14 @@ export function deleteNotification(id: number) {
   return request.delete(`/admin/notifications/${id}`)
 }
 
+export function getUnreadNotificationCount() {
+  return request.get('/admin/notifications/unread-count')
+}
+
+export function markNotificationRead(id: number) {
+  return request.post(`/admin/notifications/${id}/read`)
+}
+
 export function getLeaves(params: any) {
   return request.get('/admin/leaves', { params })
 }
@@ -34,24 +42,4 @@ export function applyLeave(data: any) {
 
 export function approveLeave(id: number, status: number, reason?: string) {
   return request.put(`/admin/leaves/${id}/approve`, null, { params: { status, reason } })
-}
-
-export function getGuides(params: any) {
-  return request.get('/admin/guides', { params })
-}
-
-export function getGuide(id: number) {
-  return request.get(`/admin/guides/${id}`)
-}
-
-export function addGuide(data: any) {
-  return request.post('/admin/guides', data)
-}
-
-export function updateGuide(id: number, data: any) {
-  return request.put(`/admin/guides/${id}`, data)
-}
-
-export function deleteGuide(id: number) {
-  return request.delete(`/admin/guides/${id}`)
 }

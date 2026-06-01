@@ -1,21 +1,19 @@
 <template>
-  <div class="h-full flex">
+  <div class="layout-container">
     <aside
       :style="{ width: appStore.sidebarCollapsed ? '64px' : '240px' }"
-      class="flex-shrink-0 bg-gradient-to-b from-ink to-slate transition-[width] duration-300 overflow-hidden shadow-[2px_0_12px_rgba(0,0,0,0.08)]"
+      class="layout-sidebar"
     >
       <AppSidebar />
     </aside>
-    <div class="flex-1 flex flex-col min-w-0">
-      <header class="h-[60px] flex-shrink-0 bg-white/95 backdrop-blur-md border-b border-soft px-5 flex items-center z-10">
+    <div class="layout-main">
+      <header class="layout-header">
         <AppHeader />
       </header>
-      <main class="flex-1 overflow-auto bg-cloud p-6 noise-bg">
-        <router-view v-slot="{ Component }">
-          <transition name="page-slide" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+      <main class="layout-content">
+        <div class="content-wrapper">
+          <router-view />
+        </div>
       </main>
     </div>
   </div>
@@ -29,31 +27,82 @@ const appStore = useAppStore()
 </script>
 
 <style scoped>
-.noise-bg {
-  background-image: 
-    radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.02) 0%, transparent 50%);
+.layout-container {
+  height: 100%;
+  display: flex;
 }
-.page-slide-enter-active,
-.page-slide-leave-active {
-  transition: opacity 0.15s ease;
+
+.layout-sidebar {
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #0f0f23 0%, #1a0a2e 50%, #0d0d1a 100%);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  z-index: 100;
 }
-.page-slide-enter-from,
-.page-slide-leave-to {
-  opacity: 0;
+
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-main::-webkit-scrollbar {
+
+.layout-header {
+  height: 60px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.6);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  z-index: 50;
+  position: relative;
+}
+
+.layout-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.08), transparent);
+}
+
+.layout-content {
+  flex: 1;
+  overflow: auto;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.03) 0%, transparent 50%),
+    #f8f9fc;
+  padding: 28px 32px;
+}
+
+.content-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+
+.layout-content::-webkit-scrollbar {
   width: 6px;
 }
-main::-webkit-scrollbar-track {
+
+.layout-content::-webkit-scrollbar-track {
   background: transparent;
 }
-main::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+
+.layout-content::-webkit-scrollbar-thumb {
+  background: rgba(209, 213, 219, 0.6);
   border-radius: 3px;
 }
-main::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+
+.layout-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8);
 }
 </style>

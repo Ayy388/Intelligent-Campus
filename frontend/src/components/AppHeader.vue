@@ -11,8 +11,9 @@
     <div class="flex items-center gap-4">
       <el-dropdown trigger="click">
         <div class="flex items-center gap-2 cursor-pointer group">
-          <div class="w-8 h-8 rounded-full bg-ink flex items-center justify-center text-white text-xs font-semibold transition-shadow duration-200 group-hover:shadow-md">
-            {{ (userStore.userInfo?.realName || 'U')[0] }}
+          <div class="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-white text-xs font-semibold transition-shadow duration-200 group-hover:shadow-md">
+            <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo?.avatar" class="w-full h-full object-cover" />
+            <span v-else class="w-full h-full bg-ink flex items-center justify-center">{{ (userStore.userInfo?.realName || 'U')[0] }}</span>
           </div>
           <span class="text-sm text-ink font-medium hidden sm:block">
             {{ userStore.userInfo?.realName || '用户' }}
@@ -22,7 +23,10 @@
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item>
-              <div class="text-ash text-xs">{{ userStore.role === 'admin' ? '管理员' : userStore.role === 'teacher' ? '教师' : '学生' }}</div>
+              <div class="text-ash text-xs">{{ userStore.role === 'admin' ? '管理员' : userStore.role === 'teacher' ? '教师' : userStore.role === 'counselor' ? '辅导员' : '学生' }}</div>
+            </el-dropdown-item>
+            <el-dropdown-item @click="router.push('/profile')">
+              <span class="text-ink">个人信息</span>
             </el-dropdown-item>
             <el-dropdown-item divided @click="logout">
               <span class="text-ink">退出登录</span>

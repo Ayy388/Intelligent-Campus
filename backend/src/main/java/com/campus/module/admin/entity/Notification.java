@@ -19,4 +19,6 @@ public class Notification {
     private LocalDateTime updateTime;
     @TableField(exist = false)
     private String publisherName;
+    @TableField(exist = false)
+    private Boolean read;
 }

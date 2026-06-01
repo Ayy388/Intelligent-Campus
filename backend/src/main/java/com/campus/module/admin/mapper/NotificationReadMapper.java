@@ -1,6 +1,7 @@
 package com.campus.module.admin.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.campus.module.admin.entity.Guide;
+import com.campus.module.admin.entity.NotificationRead;
 import org.apache.ibatis.annotations.Mapper;
+
 @Mapper
-public interface GuideMapper extends BaseMapper<Guide> {}
+public interface NotificationReadMapper extends BaseMapper<NotificationRead> {}

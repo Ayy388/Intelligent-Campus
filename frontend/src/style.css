@@ -88,52 +88,7 @@ body {
 
 .el-pagination { margin-top: 16px; justify-content: center; }
 
-.el-menu {
-  border-right: none !important;
-  background: transparent !important;
-}
-.el-menu-item {
-  color: #9CA3AF !important;
-  font-size: 14px !important;
-  height: 44px !important;
-  line-height: 44px !important;
-  margin: 2px 8px !important;
-  border-radius: 8px !important;
-  transition: all 0.15s ease !important;
-}
-.el-menu-item:hover {
-  color: #FFFFFF !important;
-  background: rgba(255,255,255,0.08) !important;
-}
-.el-menu-item.is-active {
-  color: #FFFFFF !important;
-  background: rgba(255,255,255,0.12) !important;
-  border-left: 3px solid #FFFFFF !important;
-  padding-left: 17px !important;
-}
-.el-sub-menu__title {
-  color: #6B7280 !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.5px;
-  height: 44px !important;
-  line-height: 44px !important;
-  margin: 2px 8px !important;
-  border-radius: 8px !important;
-}
-.el-sub-menu__title:hover {
-  color: #FFFFFF !important;
-  background: rgba(255,255,255,0.06) !important;
-}
-.el-sub-menu .el-menu {
-  background: transparent !important;
-}
-.el-sub-menu .el-menu-item {
-  padding-left: 52px !important;
-}
-.el-sub-menu .el-menu-item.is-active {
-  padding-left: 49px !important;
-}
+
 
 .el-dialog {
   border-radius: 12px !important;

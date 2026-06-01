@@ -7,6 +7,8 @@ import com.campus.module.sys.mapper.SysClassMapper;
 import com.campus.module.sys.mapper.SysDepartmentMapper;
 import com.campus.module.sys.mapper.SysMajorMapper;
 import com.campus.module.sys.mapper.SysGradeMapper;
+import com.campus.module.sys.mapper.SysUserMapper;
+import com.campus.module.sys.entity.SysUser;
 import com.campus.module.sys.service.SysClassService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ public class SysClassServiceImpl implements SysClassService {
     private final SysDepartmentMapper departmentMapper;
     private final SysMajorMapper majorMapper;
     private final SysGradeMapper gradeMapper;
+    private final SysUserMapper userMapper;
 
     @Override
     public Page<SysClass> page(int page, int size) {
@@ -36,6 +39,10 @@ public class SysClassServiceImpl implements SysClassService {
             if (c.getGradeId() != null) {
                 var g = gradeMapper.selectById(c.getGradeId());
                 if (g != null) c.setGradeName(g.getName());
+            }
+            if (c.getCounselorId() != null) {
+                SysUser cu = userMapper.selectById(c.getCounselorId());
+                if (cu != null) c.setCounselorName(cu.getRealName());
             }
         }
         return result;

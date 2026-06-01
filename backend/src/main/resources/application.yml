@@ -7,6 +7,14 @@ spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+upload:
+  avatar-dir: uploads/avatars
+  image-dir: uploads/images
 
 jwt:
   secret: intelligent-campus-jwt-secret-key-2026-0529

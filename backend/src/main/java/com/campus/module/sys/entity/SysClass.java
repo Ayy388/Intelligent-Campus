@@ -23,5 +23,8 @@ public class SysClass {
     @TableField(exist = false)
     private String gradeName;
     private String advisor;
+    private Long counselorId;
+    @TableField(exist = false)
+    private String counselorName;
     private LocalDateTime createTime;
 }

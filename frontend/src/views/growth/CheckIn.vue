@@ -109,7 +109,7 @@ import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
-const isTeacher = computed(() => userStore.role === 'teacher' || userStore.role === 'admin')
+const isTeacher = computed(() => userStore.role === 'teacher' || userStore.role === 'admin' || userStore.role === 'counselor')
 
 const checkins = ref<any[]>([])
 const loading = ref(false)

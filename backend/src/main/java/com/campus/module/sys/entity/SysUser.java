@@ -22,10 +22,20 @@ public class SysUser {
     private Long roleId;
     private Long departmentId;
     private Long classId;
+    private Long majorId;
+    private Long counselorId;
     @TableField(exist = false)
     private String className;
     @TableField(exist = false)
     private String departmentName;
+    @TableField(exist = false)
+    private String majorName;
+    @TableField(exist = false)
+    private String gradeName;
+    @TableField(exist = false)
+    private String counselorName;
+    @TableField(exist = false)
+    private String counselorClasses;
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

@@ -9,8 +9,15 @@
       </div>
     </div></template>
     <el-table :data="tableData" v-loading="loading" @row-click="viewDetail">
-      <el-table-column prop="title" label="标题">
-        <template #default="{row}"><el-tag v-if="row.isTop" size="small" type="danger" style="margin-right:4px">置顶</el-tag>{{ row.title }}</template>
+      <el-table-column label="标题" min-width="200">
+        <template #default="{row}">
+          <div class="flex items-center gap-2">
+            <span v-if="row.read === false" class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+            <span :class="row.read === false ? 'font-semibold text-gray-800' : 'text-gray-500'">
+              <el-tag v-if="row.isTop" size="small" type="danger" style="margin-right:4px">置顶</el-tag>{{ row.title }}
+            </span>
+          </div>
+        </template>
       </el-table-column>
       <el-table-column prop="category" label="分类" width="100" />
       <el-table-column prop="publisherName" label="发布人" width="100" />
@@ -25,12 +32,28 @@
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submit">发布</el-button></template>
     </el-dialog>
+    <el-dialog v-model="detailVisible" title="通知详情" width="600px">
+      <div v-if="detailItem" class="space-y-4">
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg font-bold text-gray-800">{{ detailItem.title }}</h3>
+          <el-tag v-if="detailItem.isUrgent" size="small" type="danger">紧急</el-tag>
+          <el-tag v-if="detailItem.isTop" size="small">置顶</el-tag>
+        </div>
+        <div class="text-sm text-gray-500 flex items-center gap-4">
+          <span>发布人：{{ detailItem.publisherName }}</span>
+          <span>分类：{{ detailItem.category }}</span>
+          <span>时间：{{ detailItem.createTime }}</span>
+        </div>
+        <el-divider />
+        <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{{ detailItem.content }}</div>
+      </div>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getNotifications, addNotification } from '@/api/admin'
+import { getNotifications, getNotification, addNotification } from '@/api/admin'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
 const userStore = useUserStore()
@@ -40,9 +63,17 @@ const page = ref(1)
 const total = ref(0)
 const dialogVisible = ref(false)
 const filterCategory = ref('')
+const detailVisible = ref(false)
+const detailItem = ref<any>(null)
 const form = reactive({ title: '', content: '', category: 'general', isTop: false, isUrgent: false })
 async function fetch() { loading.value = true; const r = await getNotifications({ page: page.value, size: 10, category: filterCategory.value || undefined }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
-function viewDetail(row: any) { ElMessage.info(row.title) }
+async function viewDetail(row: any) {
+  try {
+    const r = await getNotification(row.id)
+    detailItem.value = r.data
+    detailVisible.value = true
+  } catch { ElMessage.error('获取详情失败') }
+}
 async function submit() { await addNotification({...form, isTop: form.isTop ? 1 : 0, isUrgent: form.isUrgent ? 1 : 0}); ElMessage.success('发布成功'); dialogVisible.value = false; fetch(); Object.assign(form, { title: '', content: '', category: 'general', isTop: false, isUrgent: false }) }
 onMounted(fetch)
 </script>

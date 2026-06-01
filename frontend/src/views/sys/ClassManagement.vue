@@ -7,7 +7,7 @@
       <el-table-column prop="departmentName" label="院系" />
       <el-table-column prop="majorName" label="专业" />
       <el-table-column prop="gradeName" label="年级" width="80" />
-      <el-table-column prop="advisor" label="辅导员" />
+      <el-table-column prop="counselorName" label="辅导员" />
       <el-table-column label="操作" width="150">
         <template #default="{row}">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
@@ -34,7 +34,11 @@
             <el-option v-for="g in grades" :key="g.id" :label="g.name" :value="g.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="辅导员"><el-input v-model="form.advisor" /></el-form-item>
+        <el-form-item label="辅导员">
+          <el-select v-model="form.counselorId" placeholder="选择辅导员" class="w-full" clearable>
+            <el-option v-for="c in counselors" :key="c.id" :label="c.realName" :value="c.id" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer><el-button @click="dialogVisible=false">取消</el-button><el-button type="primary" @click="submit">保存</el-button></template>
     </el-dialog>
@@ -43,7 +47,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getClasses, createClass, updateClass, deleteClass, getAllDepartments, getMajorsByDept, getAllGrades } from '@/api/sys'
+import { getClasses, createClass, updateClass, deleteClass, getAllDepartments, getMajorsByDept, getAllGrades, getUsers } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const list = ref<any[]>([])
@@ -57,7 +61,8 @@ const editId = ref<number | null>(null)
 const departments = ref<any[]>([])
 const majors = ref<any[]>([])
 const grades = ref<any[]>([])
-const form = reactive({ className: '', departmentId: null as number | null, majorId: null as number | null, gradeId: null as number | null, advisor: '' })
+const counselors = ref<any[]>([])
+const form = reactive({ className: '', departmentId: null as number | null, majorId: null as number | null, gradeId: null as number | null, counselorId: null as number | null })
 
 async function fetch() {
   loading.value = true
@@ -75,6 +80,14 @@ async function fetchGrades() {
   try { const r = await getAllGrades(); grades.value = r.data || [] } catch {}
 }
 
+async function fetchCounselors() {
+  try {
+    const r = await getUsers({ page: 1, size: 999 })
+    const users = r.data.records || []
+    counselors.value = users.filter((u: any) => u.roleId === 4)
+  } catch { counselors.value = [] }
+}
+
 async function onDeptChange(deptId: number) {
   form.majorId = null
   if (deptId) {
@@ -86,7 +99,7 @@ async function onDeptChange(deptId: number) {
 
 function openCreate() {
   isEdit.value = false; editId.value = null
-  form.className = ''; form.departmentId = null; form.majorId = null; form.gradeId = null; form.advisor = ''
+  form.className = ''; form.departmentId = null; form.majorId = null; form.gradeId = null; form.counselorId = null
   majors.value = []
   dialogVisible.value = true
 }
@@ -94,7 +107,7 @@ function openCreate() {
 function openEdit(row: any) {
   isEdit.value = true; editId.value = row.id
   form.className = row.className; form.departmentId = row.departmentId
-  form.majorId = row.majorId; form.gradeId = row.gradeId; form.advisor = row.advisor
+  form.majorId = row.majorId; form.gradeId = row.gradeId; form.counselorId = row.counselorId
   if (row.departmentId) onDeptChange(row.departmentId)
   dialogVisible.value = true
 }
@@ -115,5 +128,5 @@ async function doDelete(id: number) {
   await deleteClass(id); ElMessage.success('删除成功'); fetch()
 }
 
-onMounted(() => { fetch(); fetchDepartments(); fetchGrades() })
+onMounted(() => { fetch(); fetchDepartments(); fetchGrades(); fetchCounselors() })
 </script>

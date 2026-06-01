@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.module.admin.entity.*;
 
 public interface AdminService {
-    Page<Notification> pageNotifications(int page, int size, String category);
+    Page<Notification> pageNotifications(int page, int size, String category, Long userId);
     Notification getNotificationById(Long id);
     void saveNotification(Notification n);
     void updateNotification(Long id, Notification n);
@@ -17,9 +17,6 @@ public interface AdminService {
     LeaveApplication getLeaveById(Long id);
     void cancelLeave(Long id, Long userId);
 
-    Page<Guide> pageGuides(int page, int size, String category);
-    Guide getGuideById(Long id);
-    void saveGuide(Guide g);
-    void updateGuide(Long id, Guide g);
-    void deleteGuide(Long id);
+    long countUnreadNotifications(Long userId);
+    void markNotificationRead(Long notificationId, Long userId);
 }

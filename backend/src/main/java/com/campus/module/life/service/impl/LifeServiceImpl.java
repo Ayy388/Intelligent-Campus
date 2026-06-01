@@ -6,38 +6,20 @@ import com.campus.common.BusinessException;
 import com.campus.module.life.entity.*;
 import com.campus.module.life.mapper.*;
 import com.campus.module.life.service.LifeService;
+import com.campus.module.sys.entity.SysUser;
+import com.campus.module.sys.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class LifeServiceImpl implements LifeService {
-    private final CanteenMapper canteenMapper;
-    private final CanteenReviewMapper reviewMapper;
     private final CardRechargeMapper rechargeMapper;
     private final LostFoundMapper lostFoundMapper;
-
-    @Override
-    public List<Canteen> getCanteens() {
-        return canteenMapper.selectList(null);
-    }
-
-    @Override
-    public Page<CanteenReview> pageReviews(Long canteenId, int page, int size) {
-        LambdaQueryWrapper<CanteenReview> w = new LambdaQueryWrapper<>();
-        if (canteenId != null) w.eq(CanteenReview::getCanteenId, canteenId);
-        w.orderByDesc(CanteenReview::getCreateTime);
-        return reviewMapper.selectPage(new Page<>(page, size), w);
-    }
-
-    @Override
-    public void addReview(CanteenReview review) {
-        reviewMapper.insert(review);
-    }
+    private final SysUserMapper sysUserMapper;
 
     @Override
     public Page<CardRecharge> pageRecharges(Long userId, int page, int size) {
@@ -66,7 +48,9 @@ public class LifeServiceImpl implements LifeService {
         if (keyword != null && !keyword.isEmpty()) w.like(LostFound::getTitle, keyword);
         if (type != null) w.eq(LostFound::getType, type);
         w.orderByDesc(LostFound::getCreateTime);
-        return lostFoundMapper.selectPage(new Page<>(page, size), w);
+        Page<LostFound> result = lostFoundMapper.selectPage(new Page<>(page, size), w);
+        populateUserNames(result.getRecords());
+        return result;
     }
 
     @Override
@@ -81,27 +65,28 @@ public class LifeServiceImpl implements LifeService {
     }
 
     @Override
-    public void deleteReview(Long id, Long userId) {
-        CanteenReview review = reviewMapper.selectById(id);
-        if (review == null || !review.getUserId().equals(userId))
-            throw new BusinessException("无权删除");
-        reviewMapper.deleteById(id);
-    }
-
-    @Override
-    public void saveCanteen(Canteen c) { canteenMapper.insert(c); }
-
-    @Override
-    public void updateCanteen(Long id, Canteen c) { c.setId(id); canteenMapper.updateById(c); }
-
-    @Override
-    public void deleteCanteen(Long id) { canteenMapper.deleteById(id); }
-
-    @Override
     public void deleteLostFound(Long id, Long userId) {
         LostFound lf = lostFoundMapper.selectById(id);
         if (lf == null || !lf.getUserId().equals(userId))
             throw new BusinessException("无权删除");
         lostFoundMapper.deleteById(id);
+    }
+
+    @Override
+    public LostFound getLostFoundById(Long id) {
+        LostFound lf = lostFoundMapper.selectById(id);
+        if (lf == null) throw new BusinessException("记录不存在");
+        populateUserNames(java.util.List.of(lf));
+        return lf;
+    }
+
+    private void populateUserNames(java.util.List<LostFound> records) {
+        java.util.Set<Long> userIds = new java.util.HashSet<>();
+        for (LostFound lf : records) userIds.add(lf.getUserId());
+        if (userIds.isEmpty()) return;
+        java.util.List<SysUser> users = sysUserMapper.selectBatchIds(userIds);
+        java.util.Map<Long, String> nameMap = new java.util.HashMap<>();
+        for (SysUser u : users) nameMap.put(u.getId(), u.getRealName());
+        for (LostFound lf : records) lf.setUserName(nameMap.get(lf.getUserId()));
     }
 }

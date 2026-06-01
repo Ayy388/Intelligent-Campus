@@ -211,4 +211,23 @@ public class GrowthServiceImpl implements GrowthService {
 
     @Override
     public void deleteCheckIn(Long id) { checkinMapper.deleteById(id); }
+
+    @Override
+    public long countUncheckedCheckIns(Long studentId) {
+        SysUser student = userMapper.selectById(studentId);
+        if (student == null || student.getClassId() == null) return 0;
+
+        java.util.List<Long> checkedIds = recordMapper.selectList(
+            new LambdaQueryWrapper<CheckInRecord>()
+                .select(CheckInRecord::getCheckinId)
+                .eq(CheckInRecord::getStudentId, studentId))
+            .stream().map(CheckInRecord::getCheckinId).collect(java.util.stream.Collectors.toList());
+
+        LambdaQueryWrapper<CheckIn> w = new LambdaQueryWrapper<CheckIn>()
+            .eq(CheckIn::getClassId, student.getClassId());
+        if (!checkedIds.isEmpty()) {
+            w.notIn(CheckIn::getId, checkedIds);
+        }
+        return checkinMapper.selectCount(w);
+    }
 }

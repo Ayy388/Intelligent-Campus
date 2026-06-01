@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/life")
 @RequiredArgsConstructor
@@ -20,26 +18,6 @@ public class LifeController {
 
     private Long getUserId(Authentication auth) {
         return Long.parseLong(((Claims) auth.getDetails()).getSubject());
-    }
-
-    @GetMapping("/canteens")
-    public Result<List<Canteen>> canteens() {
-        return Result.ok(lifeService.getCanteens());
-    }
-
-    @GetMapping("/canteen-reviews")
-    public Result<PageResult<CanteenReview>> reviews(
-            @RequestParam(required = false) Long canteenId,
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return toPage(lifeService.pageReviews(canteenId, page, size));
-    }
-
-    @PostMapping("/canteen-reviews")
-    public Result<Void> addReview(@RequestBody CanteenReview review, Authentication auth) {
-        review.setUserId(getUserId(auth));
-        lifeService.addReview(review);
-        return Result.ok();
     }
 
     @GetMapping("/card-recharge")
@@ -65,6 +43,11 @@ public class LifeController {
         return toPage(lifeService.pageLostFound(keyword, type, page, size));
     }
 
+    @GetMapping("/lost-found/{id}")
+    public Result<LostFound> getLostFound(@PathVariable Long id) {
+        return Result.ok(lifeService.getLostFoundById(id));
+    }
+
     @PostMapping("/lost-found")
     public Result<Void> addLostFound(@RequestBody LostFound lf, Authentication auth) {
         lf.setUserId(getUserId(auth));
@@ -77,21 +60,6 @@ public class LifeController {
         lifeService.updateLostFoundStatus(id, status);
         return Result.ok();
     }
-
-    @DeleteMapping("/canteen-reviews/{id}")
-    public Result<Void> deleteReview(@PathVariable Long id, Authentication auth) {
-        lifeService.deleteReview(id, getUserId(auth));
-        return Result.ok();
-    }
-
-    @PostMapping("/canteens")
-    public Result<Void> addCanteen(@RequestBody Canteen c) { lifeService.saveCanteen(c); return Result.ok(); }
-
-    @PutMapping("/canteens/{id}")
-    public Result<Void> updateCanteen(@PathVariable Long id, @RequestBody Canteen c) { lifeService.updateCanteen(id, c); return Result.ok(); }
-
-    @DeleteMapping("/canteens/{id}")
-    public Result<Void> deleteCanteen(@PathVariable Long id) { lifeService.deleteCanteen(id); return Result.ok(); }
 
     @DeleteMapping("/lost-found/{id}")
     public Result<Void> deleteLostFound(@PathVariable Long id, Authentication auth) {

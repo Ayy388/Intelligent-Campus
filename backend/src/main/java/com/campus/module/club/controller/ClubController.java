@@ -121,10 +121,11 @@ public class ClubController {
     @GetMapping("/venue/booking")
     public Result<PageResult<VenueBooking>> bookings(Authentication auth,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer status) {
         Claims claims = (Claims) auth.getDetails();
         return toPage(clubService.pageBookings(Long.parseLong(claims.getSubject()),
-                claims.get("role", String.class), page, size));
+                claims.get("role", String.class), page, size, status));
     }
 
     @PostMapping("/venue/booking")

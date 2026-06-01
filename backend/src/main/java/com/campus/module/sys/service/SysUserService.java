@@ -9,5 +9,8 @@ import com.campus.module.sys.entity.SysUser;
 public interface SysUserService extends IService<SysUser> {
     LoginResponse login(LoginRequest request);
     SysUser getByUsername(String username);
-    Page<SysUser> pageUsers(int page, int size, String keyword);
+    Page<SysUser> pageUsers(int page, int size, String keyword, Long roleId);
+    void updateProfile(Long userId, SysUser updated);
+    void changePassword(Long userId, String oldPassword, String newPassword);
+    void resolveUserExtra(SysUser u);
 }

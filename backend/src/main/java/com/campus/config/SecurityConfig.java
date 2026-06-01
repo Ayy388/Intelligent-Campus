@@ -27,6 +27,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/sys/departments/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/majors/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/grades/all").authenticated()
@@ -65,16 +66,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/admin/notifications").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.PUT, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.DELETE, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
-                .requestMatchers(HttpMethod.GET, "/api/admin/guides", "/api/admin/guides/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/admin/guides").hasRole("admin")
-                .requestMatchers(HttpMethod.PUT, "/api/admin/guides/**").hasRole("admin")
-                .requestMatchers(HttpMethod.DELETE, "/api/admin/guides/**").hasRole("admin")
                 .requestMatchers("/api/admin/leaves/**").authenticated()
 
-                .requestMatchers("/api/life/canteens/**", "/api/life/canteen-reviews/**").authenticated()
                 .requestMatchers("/api/life/card-recharge/**").hasRole("student")
                 .requestMatchers("/api/life/lost-found/**").authenticated()
                 .requestMatchers("/api/club/**").authenticated()
+                .requestMatchers("/api/activity/**").authenticated()
 
                 // 成长: 签到创建+评语→teacher/admin, 查看→所有人
                 .requestMatchers(HttpMethod.POST, "/api/growth/checkin").hasAnyRole("teacher", "admin")
@@ -84,6 +81,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/message/announcement").hasAnyRole("teacher", "admin")
                 .requestMatchers("/api/message/**").authenticated()
                 .requestMatchers("/api/ai/**").authenticated()
+                .requestMatchers("/api/todos/**").authenticated()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

@@ -318,10 +318,11 @@ import {
 } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
-const isTeacher = computed(() => userStore.role === 'teacher' || userStore.role === 'admin')
+const isTeacher = computed(() => userStore.role === 'teacher' || userStore.role === 'admin' || userStore.role === 'counselor')
 const roleLabel = computed(() => {
   if (userStore.role === 'teacher') return '教师'
   if (userStore.role === 'admin') return '管理员'
+  if (userStore.role === 'counselor') return '辅导员'
   return '学生'
 })
 const avatarChar = computed(() => {

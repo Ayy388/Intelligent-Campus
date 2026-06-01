@@ -242,11 +242,12 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
-    public Page<VenueBooking> pageBookings(Long userId, String role, int page, int size) {
+    public Page<VenueBooking> pageBookings(Long userId, String role, int page, int size, Integer status) {
         LambdaQueryWrapper<VenueBooking> w = new LambdaQueryWrapper<>();
         if ("student".equals(role)) w.eq(VenueBooking::getUserId, userId);
-        else if ("teacher".equals(role) || "admin".equals(role))
+        else if ("teacher".equals(role) || "admin".equals(role) || "counselor".equals(role))
             w.and(w2 -> w2.eq(VenueBooking::getApproverId, userId).or().isNull(VenueBooking::getApproverId));
+        if (status != null) w.eq(VenueBooking::getStatus, status);
         w.orderByDesc(VenueBooking::getApplyTime);
         return bookingMapper.selectPage(new Page<>(page, size), w);
     }
