@@ -9,6 +9,15 @@
         <el-select v-model="selectedCourseId" placeholder="请选择授课课程" class="w-80" @change="onCourseChange" clearable>
           <el-option v-for="c in courses" :key="c.id" :label="`${c.courseName} (${c.semester})`" :value="c.id" />
         </el-select>
+        <el-select
+          v-if="classOptions.length > 0"
+          v-model="selectedClassFilter"
+          placeholder="按班级筛选"
+          class="w-48"
+          clearable
+        >
+          <el-option v-for="cls in classOptions" :key="cls" :label="cls" :value="cls" />
+        </el-select>
       </div>
 
       <div v-if="!selectedCourseId" class="text-center text-mist py-10 text-sm">
@@ -21,10 +30,13 @@
 
       <div v-else>
         <div class="flex items-center justify-between mb-3">
-          <span class="text-sm text-ash">共 {{ students.length }} 名学生</span>
+          <span class="text-sm text-ash">
+            共 {{ students.length }} 名学生
+            <span v-if="selectedClassFilter" class="ml-1">(当前筛选: {{ filteredStudents.length }})</span>
+          </span>
           <el-button type="primary" size="small" @click="submitAllGrades">批量提交成绩</el-button>
         </div>
-        <el-table :data="students" max-height="480" border>
+        <el-table :data="filteredStudents" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
           <el-table-column prop="studentUsername" label="学号" width="100" />
           <el-table-column label="课程" width="160">
@@ -74,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { getTeacherCourses, getCourseStudents, inputGrade } from '@/api/edu'
 import { ElMessage } from 'element-plus'
 
@@ -86,6 +98,17 @@ const scores = reactive<Record<number, number>>({})
 const gradeTypes = reactive<Record<number, string>>({})
 const gradeLevels = reactive<Record<number, string>>({})
 const remarks = reactive<Record<number, string>>({})
+const selectedClassFilter = ref('')
+
+const classOptions = computed(() => {
+  const names = new Set(students.value.map((s: any) => s.studentClassName).filter(Boolean))
+  return Array.from(names).sort()
+})
+
+const filteredStudents = computed(() => {
+  if (!selectedClassFilter.value) return students.value
+  return students.value.filter((s: any) => s.studentClassName === selectedClassFilter.value)
+})
 
 async function fetchCourses() {
   try {
@@ -101,6 +124,7 @@ async function onCourseChange() {
     students.value = []
     return
   }
+  selectedClassFilter.value = ''
   try {
     const r = await getCourseStudents(selectedCourseId.value)
     students.value = r.data || []
@@ -141,7 +165,7 @@ async function doSubmitSingle(student: any) {
 }
 
 async function submitAllGrades() {
-  for (const student of students.value) {
+  for (const student of filteredStudents.value) {
     try {
       await doSubmitSingle(student)
     } catch {
