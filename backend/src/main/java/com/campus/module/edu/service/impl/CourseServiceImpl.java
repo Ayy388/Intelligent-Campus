@@ -150,6 +150,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 }
                 s.setStudentPhone(student.getPhone());
             }
+            Long gradeCnt = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
+                    .eq(Grade::getStudentId, s.getStudentId())
+                    .eq(Grade::getCourseId, s.getCourseId())
+                    .eq(Grade::getSemester, s.getSemester()));
+            s.setGraded(gradeCnt > 0);
         }
         return list;
     }
@@ -181,24 +186,29 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @Transactional
     public void inputGrade(Grade grade) {
         if (grade.getScore() == null) throw new BusinessException("成绩不能为空");
+        if (grade.getScore().compareTo(java.math.BigDecimal.ZERO) < 0 || grade.getScore().compareTo(new java.math.BigDecimal("100")) > 0)
+            throw new BusinessException("分数必须在 0-100 之间");
+        if (grade.getTeacherId() == null) throw new BusinessException("教师信息缺失");
         Course course = courseMapper.selectById(grade.getCourseId());
         if (course == null) throw new BusinessException("课程不存在");
-        Long cnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
+        if (!course.getTeacherId().equals(grade.getTeacherId()))
+            throw new BusinessException("您不是该课程的授课教师");
+        Long selCnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getStudentId, grade.getStudentId())
                 .eq(CourseSelection::getCourseId, grade.getCourseId())
                 .eq(CourseSelection::getStatus, 1));
-        if (cnt == 0) throw new BusinessException("该学生未选修此课程");
+        if (selCnt == 0) throw new BusinessException("该学生未选修此课程");
         Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
                 .eq(Grade::getStudentId, grade.getStudentId())
                 .eq(Grade::getCourseId, grade.getCourseId())
                 .eq(Grade::getSemester, grade.getSemester()));
         if (existCount > 0) throw new BusinessException("该学生该学期成绩已录入");
+        grade.setCreateTime(LocalDateTime.now());
         gradeMapper.insert(grade);
-    }
-
-    @Override
+    }    @Override
     public List<Grade> getStudentGrades(Long studentId) {
         List<Grade> grades = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
         for (Grade g : grades) {

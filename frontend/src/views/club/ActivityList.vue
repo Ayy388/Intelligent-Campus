@@ -175,7 +175,7 @@
       <template #footer>
         <div class="flex justify-end gap-3 px-2 pt-2">
           <el-button @click="summaryVisible=false" class="!rounded-xl !px-5">取消</el-button>
-          <el-button type="primary" @click="doSaveSummary" class="!rounded-xl !px-6 !bg-ink !border-ink hover:!bg-steel">保存</el-button>
+          <el-button type="primary" @click="doSaveSummary" :loading="submitting" class="!rounded-xl !px-6 !bg-ink !border-ink hover:!bg-steel">保存</el-button>
         </div>
       </template>
     </el-dialog>

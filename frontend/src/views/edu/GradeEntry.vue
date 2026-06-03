@@ -44,6 +44,12 @@
         <el-table :data="filteredStudents" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
           <el-table-column prop="studentUsername" label="学号" width="100" />
+          <el-table-column label="状态" width="70">
+            <template #default="{row}">
+              <el-tag v-if="row.graded" type="success" size="small">已录入</el-tag>
+              <el-tag v-else type="info" size="small">待录入</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="课程" width="160">
             <template #default="{row}">{{ row.courseName || '未获取' }}</template>
           </el-table-column>
@@ -155,9 +161,9 @@ async function onCourseChange() {
   }
 }
 
-async function doSubmitSingle(student: any) {
-  if (!scores[student.id] && gradeTypes[student.id] !== '等级制') {
-    ElMessage.warning('请输入分数')
+async function doSubmitSingle(student: any, silent = false) {
+  if (scores[student.id] === undefined && gradeTypes[student.id] !== '等级制') {
+    if (!silent) ElMessage.warning('请输入分数')
     return
   }
   submittingId.value = student.id
@@ -167,6 +173,7 @@ async function doSubmitSingle(student: any) {
       courseId: selectedCourseId.value,
       semester: student.semester,
       gradeType: gradeTypes[student.id],
+      gradeLevel: gradeTypes[student.id] === '等级制' ? gradeLevels[student.id] : '',
       score: gradeTypes[student.id] === '等级制' ? 0 : scores[student.id],
       remark: remarks[student.id] || ''
     }
@@ -175,9 +182,11 @@ async function doSubmitSingle(student: any) {
       data.score = levelMap[gradeLevels[student.id]] || 0
     }
     await inputGrade(data)
-    ElMessage.success(`${student.studentName} 成绩录入成功`)
+    if (!silent) ElMessage.success(`${student.studentName} 成绩录入成功`)
+    return true
   } catch {
-    ElMessage.error(`${student.studentName} 录入失败`)
+    if (!silent) ElMessage.error(`${student.studentName} 录入失败`)
+    return false
   } finally {
     submittingId.value = null
   }
@@ -185,16 +194,23 @@ async function doSubmitSingle(student: any) {
 
 async function submitAllGrades() {
   submitting.value = true
-  for (const student of filteredStudents.value) {
-    try {
-      await doSubmitSingle(student)
-    } catch {
-      // continue with others
-    }
+  const list = filteredStudents.value
+  let success = 0, fail = 0
+  for (let i = 0; i < list.length; i++) {
+    const ok = await doSubmitSingle(list[i], true)
+    if (ok) success++; else fail++
+    ElMessage({
+      message: `录入进度: ${i + 1}/${list.length} (成功 ${success}, 失败 ${fail})`,
+      type: fail > 0 ? 'warning' : 'info',
+      duration: 1500
+    })
   }
   submitting.value = false
-  ElMessage.success('批量录入完成')
+  if (fail === 0) {
+    ElMessage.success(`批量录入完成，共 ${success} 人`)
+  } else {
+    ElMessage.warning(`录入完成: ${success} 成功, ${fail} 失败`)
+  }
 }
-
 onMounted(fetchCourses)
 </script>

@@ -14,6 +14,7 @@ public class Grade {
     private Long teacherId;
     private BigDecimal score;
     private String gradeType;
+    private String gradeLevel;
     private String semester;
     private String remark;
     private LocalDateTime createTime;

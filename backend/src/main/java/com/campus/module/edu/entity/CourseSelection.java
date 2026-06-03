@@ -28,4 +28,6 @@ public class CourseSelection {
     private String studentPhone;
     @TableField(exist = false)
     private String studentUsername;
+    @TableField(exist = false)
+    private Boolean graded;
 }

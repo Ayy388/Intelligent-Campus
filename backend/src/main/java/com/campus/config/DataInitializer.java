@@ -115,6 +115,8 @@ public class DataInitializer implements CommandLineRunner {
             )
         """);
 
+        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD COLUMN grade_level VARCHAR(10)"); } catch (Exception ignored) {}
+
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS admin_notification (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
