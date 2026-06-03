@@ -182,6 +182,7 @@ async function doSubmitSingle(student: any, silent = false) {
       data.score = levelMap[gradeLevels[student.id]] || 0
     }
     await inputGrade(data)
+    student.graded = true
     if (!silent) ElMessage.success(`${student.studentName} 成绩录入成功`)
     return true
   } catch {
