@@ -6,7 +6,7 @@
     <div class="bg-white rounded-xl border border-soft p-5">
       <div class="flex items-center gap-4 mb-5">
         <span class="text-sm text-ash">选择课程：</span>
-        <el-select v-model="selectedCourseId" placeholder="请选择授课课程" class="w-80" @change="onCourseChange" clearable>
+        <el-select v-model="selectedCourseId" placeholder="请选择授课课程" class="w-80" @change="onCourseChange" clearable :loading="loading">
           <el-option v-for="c in courses" :key="c.id" :label="`${c.courseName} (${c.semester})`" :value="c.id" />
         </el-select>
         <el-select
@@ -34,8 +34,9 @@
             共 {{ students.length }} 名学生
             <span v-if="selectedClassFilter" class="ml-1">(当前筛选: {{ filteredStudents.length }})</span>
           </span>
-          <el-button type="primary" size="small" @click="submitAllGrades">批量提交成绩</el-button>
+          <el-button type="primary" size="small" @click="submitAllGrades" :loading="submitting">批量提交成绩</el-button>
         </div>
+        <div v-loading="studentsLoading" element-loading-text="加载学生数据中...">
         <el-table :data="filteredStudents" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
           <el-table-column prop="studentUsername" label="学号" width="100" />
@@ -76,10 +77,11 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{row}">
-              <el-button size="small" type="primary" @click="doSubmitSingle(row)">录入</el-button>
+              <el-button size="small" type="primary" @click="doSubmitSingle(row)" :loading="submittingId === row.id" :disabled="submitting">录入</el-button>
             </template>
           </el-table-column>
         </el-table>
+        </div>
       </div>
     </div>
   </div>
@@ -93,6 +95,11 @@ import { ElMessage } from 'element-plus'
 const courses = ref<any[]>([])
 const selectedCourseId = ref<number | null>(null)
 const students = ref<any[]>([])
+
+const loading = ref(false)
+const studentsLoading = ref(false)
+const submitting = ref(false)
+const submittingId = ref<number | null>(null)
 
 const scores = reactive<Record<number, number>>({})
 const gradeTypes = reactive<Record<number, string>>({})
@@ -111,11 +118,14 @@ const filteredStudents = computed(() => {
 })
 
 async function fetchCourses() {
+  loading.value = true
   try {
     const r = await getTeacherCourses()
     courses.value = r.data || []
   } catch {
     ElMessage.error('获取课程列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -125,6 +135,7 @@ async function onCourseChange() {
     return
   }
   selectedClassFilter.value = ''
+  studentsLoading.value = true
   try {
     const r = await getCourseStudents(selectedCourseId.value)
     students.value = r.data || []
@@ -136,6 +147,8 @@ async function onCourseChange() {
     })
   } catch {
     ElMessage.error('获取学生列表失败')
+  } finally {
+    studentsLoading.value = false
   }
 }
 
@@ -144,6 +157,7 @@ async function doSubmitSingle(student: any) {
     ElMessage.warning('请输入分数')
     return
   }
+  submittingId.value = student.id
   try {
     const data: any = {
       studentId: student.studentId,
@@ -161,10 +175,13 @@ async function doSubmitSingle(student: any) {
     ElMessage.success(`${student.studentName} 成绩录入成功`)
   } catch {
     ElMessage.error(`${student.studentName} 录入失败`)
+  } finally {
+    submittingId.value = null
   }
 }
 
 async function submitAllGrades() {
+  submitting.value = true
   for (const student of filteredStudents.value) {
     try {
       await doSubmitSingle(student)
@@ -172,6 +189,7 @@ async function submitAllGrades() {
       // continue with others
     }
   }
+  submitting.value = false
   ElMessage.success('批量录入完成')
 }
 
