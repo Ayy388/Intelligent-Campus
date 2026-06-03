@@ -152,8 +152,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             }
             Long gradeCnt = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
                     .eq(Grade::getStudentId, s.getStudentId())
-                    .eq(Grade::getCourseId, s.getCourseId())
-                    .eq(Grade::getSemester, s.getSemester()));
+                    .eq(Grade::getCourseId, s.getCourseId()));
             s.setGraded(gradeCnt > 0);
         }
         return list;
@@ -203,12 +202,13 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (selCnt == 0) throw new BusinessException("该学生未选修此课程");
         Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
                 .eq(Grade::getStudentId, grade.getStudentId())
-                .eq(Grade::getCourseId, grade.getCourseId())
-                .eq(Grade::getSemester, grade.getSemester()));
+                .eq(Grade::getCourseId, grade.getCourseId()));
         if (existCount > 0) throw new BusinessException("该学生该学期成绩已录入");
         grade.setCreateTime(LocalDateTime.now());
         gradeMapper.insert(grade);
-    }    @Override
+    }
+
+    @Override
     public List<Grade> getStudentGrades(Long studentId) {
         List<Grade> grades = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
         for (Grade g : grades) {
