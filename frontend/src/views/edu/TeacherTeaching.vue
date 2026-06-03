@@ -14,9 +14,15 @@
           <el-input v-model="searchKeyword" placeholder="搜索课程名称" class="w-48" clearable @input="filterCourses" />
         </div>
       </div>
-      <div v-if="filteredCourses.length === 0" class="text-center text-mist py-6 text-sm">
+      <div v-if="loading" class="flex flex-col items-center justify-center py-10">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <span class="text-mist text-sm mt-3">加载课程数据中...</span>
+      </div>
+      <template v-else-if="filteredCourses.length === 0">
+      <div class="text-center text-mist py-6 text-sm">
         暂无课程数据
       </div>
+      </template>
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="c in filteredCourses"
@@ -79,7 +85,11 @@
         </div>
       </div>
 
-      <div v-if="classGroups.length === 0" class="text-center text-mist py-6 text-sm">
+      <div v-if="studentsLoading" class="flex flex-col items-center justify-center py-10">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <span class="text-mist text-sm mt-3">加载学生数据中...</span>
+      </div>
+      <div v-else-if="classGroups.length === 0" class="text-center text-mist py-6 text-sm">
         该课程暂无选课学生
       </div>
       <template v-else>
@@ -124,6 +134,8 @@ import { getTeacherCourses, getCourseStudents, confirmCourse, getCourseClasses, 
 import { getAllClasses } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+const loading = ref(false)
+const studentsLoading = ref(false)
 const courses = ref<any[]>([])
 const students = ref<any[]>([])
 const semesters = ref<any[]>([])
@@ -169,11 +181,14 @@ const displayedStudents = computed(() => {
 })
 
 async function fetchData() {
+  loading.value = true
   try {
     const r = await getTeacherCourses()
     courses.value = r.data || []
   } catch {
     ElMessage.error('获取课程列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -187,11 +202,14 @@ async function fetchSemesters() {
 async function selectCourse(course: any) {
   selectedCourseId.value = course.id
   selectedClass.value = ''
+  studentsLoading.value = true
   try {
     const r = await getCourseStudents(course.id)
     students.value = r.data || []
   } catch {
     ElMessage.error('获取学生名单失败')
+  } finally {
+    studentsLoading.value = false
   }
 }
 
@@ -227,12 +245,15 @@ function goCheckIn(courseId: number, classId: number) {
 
 async function viewClassStudents(courseId: number, classId: number) {
   selectedCourseId.value = courseId
+  studentsLoading.value = true
   try {
     const r = await getCourseStudents(courseId)
     students.value = r.data || []
     selectedClass.value = getClassName(classId)
   } catch {
     ElMessage.error('获取学生名单失败')
+  } finally {
+    studentsLoading.value = false
   }
 }
 

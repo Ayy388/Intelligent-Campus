@@ -1,6 +1,6 @@
 <template>
   <div class="flex gap-4 h-[calc(100vh-180px)]">
-    <div class="w-72 flex-shrink-0 bg-white rounded-xl border border-soft overflow-hidden flex flex-col">
+    <div class="w-72 flex-shrink-0 bg-white rounded-xl border border-soft overflow-hidden flex flex-col" v-loading="loading">
       <div class="p-4 border-b border-wash font-semibold text-ink text-sm">会话列表</div>
       <div class="flex-1 overflow-y-auto">
         <div v-for="c in conversations" :key="c.id" @click="selectConversation(c)"
@@ -40,8 +40,9 @@ const selectedId = ref<number | null>(null)
 const peerName = ref('')
 const inputText = ref('')
 const newPeerId = ref('')
-async function fetchConvs() { const r = await getConversations({ page: 1, size: 50 }); conversations.value = r.data.records }
-async function selectConversation(c: any) { selectedId.value = c.id; peerName.value = c.peerName; const r = await getConversationMessages(c.id); messages.value = r.data }
+const loading = ref(false)
+async function fetchConvs() { loading.value = true; try { const r = await getConversations({ page: 1, size: 50 }); conversations.value = r.data.records } finally { loading.value = false } }
+async function selectConversation(c: any) { loading.value = true; try { selectedId.value = c.id; peerName.value = c.peerName; const r = await getConversationMessages(c.id); messages.value = r.data } finally { loading.value = false } }
 async function doSend() {
   if (!inputText.value.trim()) return
   const peerId = selectedId.value ? null : Number(newPeerId.value)

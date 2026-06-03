@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen">
+  <div v-loading="loading" class="min-h-screen">
     <div class="flex items-center gap-3 mb-6">
       <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-200 flex items-center justify-center">
         <svg class="w-4.5 h-4.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -269,7 +269,7 @@
           <div class="text-xs text-mist">提交后将等待管理员审批</div>
           <div class="flex gap-3">
             <el-button @click="bookingVisible=false" class="!rounded-xl !border-soft !text-ash !px-5">取消</el-button>
-            <el-button type="primary" @click="doBooking"
+            <el-button type="primary" @click="doBooking" :loading="submitting"
               class="!rounded-xl !bg-gradient-to-r !from-indigo-500 !to-purple-600 !border-none !px-5 !shadow-lg !shadow-indigo-200">
               提交预约
             </el-button>
@@ -302,7 +302,7 @@
       <template #footer>
         <div class="flex justify-end gap-3">
           <el-button @click="rejectVisible=false" class="!rounded-xl !border-soft !text-ash !px-5">取消</el-button>
-          <el-button type="primary" @click="doReject"
+          <el-button type="primary" @click="doReject" :loading="submitting"
             class="!rounded-xl !bg-gradient-to-r !from-red-500 !to-rose-600 !border-none !px-5 !shadow-lg !shadow-red-200">
             确认驳回
           </el-button>
@@ -326,6 +326,8 @@ const bookings = ref<any[]>([])
 const page = ref(1)
 const total = ref(0)
 const pageSize = 10
+const loading = ref(false)
+const submitting = ref(false)
 
 const bookingTabs = [
   { key: 'my' as const, label: '我的预约' },
@@ -355,22 +357,32 @@ const iconGradients = [
 ]
 
 async function fetchVenues() {
-  const r = await getVenues()
-  venues.value = r.data || []
+  loading.value = true
+  try {
+    const r = await getVenues()
+    venues.value = r.data || []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function fetchBookings() {
-  if (bookingTab.value === 'my') {
-    const r = await getBookings({ page: 1, size: 999 })
-    let data = r.data.records || []
-    data = data.filter((b: any) => b.userId === userStore.userInfo?.id)
-    total.value = data.length
-    const start = (page.value - 1) * pageSize
-    bookings.value = data.slice(start, start + pageSize)
-  } else {
-    const r = await getBookings({ page: page.value, size: pageSize })
-    bookings.value = r.data.records || []
-    total.value = r.data.total || 0
+  loading.value = true
+  try {
+    if (bookingTab.value === 'my') {
+      const r = await getBookings({ page: 1, size: 999 })
+      let data = r.data.records || []
+      data = data.filter((b: any) => b.userId === userStore.userInfo?.id)
+      total.value = data.length
+      const start = (page.value - 1) * pageSize
+      bookings.value = data.slice(start, start + pageSize)
+    } else {
+      const r = await getBookings({ page: page.value, size: pageSize })
+      bookings.value = r.data.records || []
+      total.value = r.data.total || 0
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -387,18 +399,25 @@ async function doBooking() {
   if (!bookingForm.title.trim()) { ElMessage.warning('请输入活动名称'); return }
   if (!bookingForm.startTime) { ElMessage.warning('请选择开始时间'); return }
   if (!bookingForm.endTime) { ElMessage.warning('请选择结束时间'); return }
+  submitting.value = true
   try {
     await applyBooking({ ...bookingForm, venueId: selectedVenue.value.id })
     ElMessage.success('预约已提交')
     bookingVisible.value = false
     fetchBookings()
   } catch { ElMessage.error('预约提交失败') }
+  finally { submitting.value = false }
 }
 
 async function doApprove(id: number, status: number) {
-  await approveBooking(id, status)
-  ElMessage.success(status === 1 ? '已通过' : '已驳回')
-  fetchBookings()
+  submitting.value = true
+  try {
+    await approveBooking(id, status)
+    ElMessage.success(status === 1 ? '已通过' : '已驳回')
+    fetchBookings()
+  } finally {
+    submitting.value = false
+  }
 }
 
 function startReject(id: number) {
@@ -409,10 +428,15 @@ function startReject(id: number) {
 
 async function doReject() {
   if (!rejectBookingId.value) return
-  await approveBooking(rejectBookingId.value, 2, rejectReason.value)
-  ElMessage.success('已驳回')
-  rejectVisible.value = false
-  fetchBookings()
+  submitting.value = true
+  try {
+    await approveBooking(rejectBookingId.value, 2, rejectReason.value)
+    ElMessage.success('已驳回')
+    rejectVisible.value = false
+    fetchBookings()
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(() => {

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-4">
         <span class="text-xl font-bold text-ink tracking-tight">活动中心</span>
@@ -151,7 +151,7 @@
       <template #footer>
         <div class="flex justify-end gap-3 px-2 pt-2">
           <el-button @click="createVisible=false" class="!rounded-xl !px-5">取消</el-button>
-          <el-button type="primary" @click="doCreate" class="!rounded-xl !px-6 !bg-ink !border-ink hover:!bg-steel">发布</el-button>
+          <el-button type="primary" @click="doCreate" :loading="submitting" class="!rounded-xl !px-6 !bg-ink !border-ink hover:!bg-steel">发布</el-button>
         </div>
       </template>
     </el-dialog>
@@ -218,6 +218,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 const userStore = useUserStore()
 
+const loading = ref(false)
+const enrolling = ref(false)
+const submitting = ref(false)
 const clubList = ref<any[]>([])
 const filterClubId = ref<number | null>(null)
 const activities = ref<any[]>([])
@@ -246,16 +249,28 @@ const currentEnrollActivity = ref<any>(null)
 const enrollments = ref<any[]>([])
 
 async function fetchClubs() {
-  const r = await getClubs()
-  clubList.value = r.data || []
+  loading.value = true
+  try {
+    const r = await getClubs()
+    clubList.value = r.data || []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function fetchActivities() {
-  const params: any = { page: page.value, size: pageSize }
-  if (filterClubId.value) params.clubId = filterClubId.value
-  const r = await getActivities(params)
-  activities.value = r.data.records || []
-  total.value = r.data.total || 0
+  loading.value = true
+  try {
+    const params: any = { page: page.value, size: pageSize }
+    if (filterClubId.value) params.clubId = filterClubId.value
+    const r = await getActivities(params)
+    activities.value = r.data.records || []
+    total.value = r.data.total || 0
+  } catch {
+    ElMessage.error('获取活动列表失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 function showCreate() {
@@ -275,12 +290,14 @@ async function doCreate() {
   if (!form.title.trim()) { ElMessage.warning('请输入活动标题'); return }
   if (!form.startTime) { ElMessage.warning('请选择开始时间'); return }
   if (!form.endTime) { ElMessage.warning('请选择结束时间'); return }
+  submitting.value = true
   try {
     await createActivity(form)
     ElMessage.success('发布成功')
     createVisible.value = false
     fetchActivities()
   } catch { ElMessage.error('发布失败') }
+  finally { submitting.value = false }
 }
 
 async function doEnroll(activity: any) {
@@ -293,12 +310,15 @@ async function doEnroll(activity: any) {
   } catch {
     return
   }
+  enrolling.value = true
   try {
     await enrollActivity(activity.id)
     ElMessage.success('报名成功')
     fetchActivities()
   } catch (e: any) {
     ElMessage.error(e.message || '报名失败')
+  } finally {
+    enrolling.value = false
   }
 }
 
@@ -311,21 +331,25 @@ function openSummary(activity: any) {
 
 async function doSaveSummary() {
   if (!summaryActivityId.value) return
+  submitting.value = true
   try {
     await updateActivitySummary(summaryActivityId.value, summaryForm.summary, summaryForm.images || undefined)
     ElMessage.success('保存成功')
     summaryVisible.value = false
     fetchActivities()
   } catch { ElMessage.error('保存失败') }
+  finally { submitting.value = false }
 }
 
 async function openEnrollments(activity: any) {
   currentEnrollActivity.value = activity
   enrollVisible.value = true
+  enrolling.value = true
   try {
     const r = await getEnrollments(activity.id)
     enrollments.value = r.data || []
   } catch { enrollments.value = [] }
+  finally { enrolling.value = false }
 }
 
 onMounted(() => {

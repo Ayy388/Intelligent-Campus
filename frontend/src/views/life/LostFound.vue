@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="flex items-center justify-between mb-4">
       <div class="flex gap-2">
         <button v-for="t in types" :key="t.value" @click="curType = t.value; page=1; fetch()"
@@ -138,11 +138,18 @@ const detailVisible = ref(false)
 const detailItem = ref<any>(null)
 const isOwner = computed(() => detailItem.value && userStore.userInfo?.id === detailItem.value.userId)
 const imageCount = computed(() => detailItem.value?.images ? detailItem.value.images.split(',').length : 0)
+const loading = ref(false)
+const submitting = ref(false)
 
 async function fetch() {
-  const r = await getLostFound({ type: curType.value, keyword: keyword.value, page: page.value, size: 10 })
-  items.value = r.data.records
-  total.value = r.data.total
+  loading.value = true
+  try {
+    const r = await getLostFound({ type: curType.value, keyword: keyword.value, page: page.value, size: 10 })
+    items.value = r.data.records
+    total.value = r.data.total
+  } finally {
+    loading.value = false
+  }
 }
 
 function showCreateDialog() {
@@ -186,19 +193,29 @@ function handleUploadRemove(file: any) {
 }
 
 async function submit() {
-  const data = { ...form, images: imageUrls.value.join(',') }
-  await addLostFound(data)
-  ElMessage.success('发布成功')
-  createVisible.value = false
-  page.value = 1
-  fetch()
+  submitting.value = true
+  try {
+    const data = { ...form, images: imageUrls.value.join(',') }
+    await addLostFound(data)
+    ElMessage.success('发布成功')
+    createVisible.value = false
+    page.value = 1
+    fetch()
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function markDone(id: number) {
-  await updateLostFoundStatus(id, 1)
-  ElMessage.success('已标记为已解决')
-  if (detailVisible.value) detailVisible.value = false
-  fetch()
+  submitting.value = true
+  try {
+    await updateLostFoundStatus(id, 1)
+    ElMessage.success('已标记为已解决')
+    if (detailVisible.value) detailVisible.value = false
+    fetch()
+  } finally {
+    submitting.value = false
+  }
 }
 
 function showDetail(item: any) {
@@ -209,10 +226,15 @@ function showDetail(item: any) {
 async function handleDelete(id: number) {
   try {
     await ElMessageBox.confirm('确定要删除这条记录吗？', '确认删除')
-    await deleteLostFound(id)
-    ElMessage.success('删除成功')
-    detailVisible.value = false
-    fetch()
+    submitting.value = true
+    try {
+      await deleteLostFound(id)
+      ElMessage.success('删除成功')
+      detailVisible.value = false
+      fetch()
+    } finally {
+      submitting.value = false
+    }
   } catch { /* cancelled */ }
 }
 

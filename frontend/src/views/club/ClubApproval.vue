@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <span class="text-lg font-bold text-ink block mb-4">社团审核管理</span>
 
     <div class="flex gap-2 mb-5">
@@ -89,14 +89,21 @@ const activeTab = ref('club')
 const pendingClubs = ref<any[]>([])
 const disbandClubs = ref<any[]>([])
 const pendingMembers = ref<any[]>([])
+const loading = ref(false)
+const submitting = ref(false)
 
 async function fetchData() {
-  if (activeTab.value === 'club') {
-    await fetchPendingClubs()
-  } else if (activeTab.value === 'member') {
-    await fetchPendingMembers()
-  } else if (activeTab.value === 'disband') {
-    await fetchDisbandClubs()
+  loading.value = true
+  try {
+    if (activeTab.value === 'club') {
+      await fetchPendingClubs()
+    } else if (activeTab.value === 'member') {
+      await fetchPendingMembers()
+    } else if (activeTab.value === 'disband') {
+      await fetchDisbandClubs()
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -148,32 +155,41 @@ async function fetchPendingMembers() {
 }
 
 async function doApproveClub(id: number, status: number) {
+  submitting.value = true
   try {
     await approveClub(id, status)
     ElMessage.success(status === 1 ? '已通过' : '已拒绝')
     await fetchPendingClubs()
   } catch {
     ElMessage.error('操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
 async function doApproveMember(id: number, status: number) {
+  submitting.value = true
   try {
     await approveMember(id, status)
     ElMessage.success(status === 1 ? '已通过' : '已拒绝')
     await fetchPendingMembers()
   } catch {
     ElMessage.error('操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
 async function doApproveDisband(id: number, status: number) {
+  submitting.value = true
   try {
     await approveDisband(id, status)
     ElMessage.success(status === 1 ? '已确认解散' : '已拒绝解散')
     await fetchDisbandClubs()
   } catch {
     ElMessage.error('操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -182,6 +198,6 @@ onMounted(() => {
     ElMessage.warning('仅管理员可访问')
     return
   }
-  fetchPendingClubs()
+  fetchData()
 })
 </script>

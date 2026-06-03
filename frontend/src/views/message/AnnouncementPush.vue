@@ -1,12 +1,12 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="bg-white rounded-xl border border-soft p-5 mb-4">
       <div class="font-semibold text-ink text-sm mb-3">发布推送</div>
       <div class="flex gap-3 items-end flex-wrap">
         <el-input v-model="form.title" placeholder="推送标题" size="small" class="!w-48" />
         <el-input v-model="form.content" placeholder="推送内容" size="small" class="!w-64" />
         <el-select v-model="form.targetType" size="small" class="!w-28"><el-option label="全体" value="all" /><el-option label="学生" value="student" /><el-option label="教师" value="teacher" /><el-option label="辅导员" value="counselor" /></el-select>
-        <button @click="doPush" class="px-5 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">发送</button>
+        <button @click="doPush" :disabled="pushing" class="px-5 py-1.5 bg-ink text-white rounded-lg text-xs font-medium hover:bg-steel transition-colors">发送</button>
       </div>
     </div>
     <div class="bg-white rounded-xl border border-soft p-5">
@@ -28,7 +28,9 @@ const announcements = ref<any[]>([])
 const page = ref(1)
 const total = ref(0)
 const form = reactive({ title: '', content: '', targetType: 'all' })
-async function fetch() { const r = await getAnnouncements({ page: page.value, size: 10 }); announcements.value = r.data.records; total.value = r.data.total }
-async function doPush() { if (!form.title) { ElMessage.warning('请输入标题'); return }; await pushAnnouncement(form); ElMessage.success('发送成功'); form.title=''; form.content=''; fetch() }
+const loading = ref(false)
+const pushing = ref(false)
+async function fetch() { loading.value = true; try { const r = await getAnnouncements({ page: page.value, size: 10 }); announcements.value = r.data.records; total.value = r.data.total } finally { loading.value = false } }
+async function doPush() { if (!form.title) { ElMessage.warning('请输入标题'); return }; pushing.value = true; try { await pushAnnouncement(form); ElMessage.success('发送成功'); form.title=''; form.content=''; fetch() } finally { pushing.value = false } }
 onMounted(fetch)
 </script>

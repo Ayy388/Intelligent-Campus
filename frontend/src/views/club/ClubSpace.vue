@@ -1,5 +1,5 @@
 <template>
-  <div class="animate__animated animate__fadeInUp">
+  <div v-loading="loading" class="animate__animated animate__fadeInUp">
     <div class="flex items-center mb-5">
       <button @click="$router.back()" class="mr-3 text-steel hover:text-ink">
         <el-icon size="20"><ArrowLeft /></el-icon>
@@ -130,21 +130,25 @@ const router = useRouter()
 const club = ref<any>(null)
 const members = ref<any[]>([])
 const myMember = ref<any>(null)
+const loading = ref(false)
 
 async function fetchData() {
   const clubId = route.params.id as string
+  loading.value = true
   try {
     const clubRes = await getClub(parseInt(clubId))
     club.value = clubRes.data
-    
+
     const membersRes = await getMembers(parseInt(clubId))
     members.value = membersRes.data || []
-    
+
     const myRes = await getMyMemberships()
     const myMemberships = myRes.data || []
     myMember.value = myMemberships.find((m: any) => m.clubId === parseInt(clubId))
   } catch (e) {
     console.error('获取数据失败', e)
+  } finally {
+    loading.value = false
   }
 }
 

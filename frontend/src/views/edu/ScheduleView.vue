@@ -25,7 +25,7 @@
       </div>
     </div>
 
-    <div class="schedule-container bg-white rounded-xl border border-soft p-6">
+    <div class="schedule-container bg-white rounded-xl border border-soft p-6" v-loading="loading" element-loading-text="加载课表中...">
       <div class="grid grid-cols-8 gap-2 mb-4">
         <div class="text-center text-sm font-semibold text-ash py-2">时间</div>
         <div v-for="day in weekDays" :key="day" class="text-center text-sm font-semibold text-ash py-2">
@@ -119,6 +119,7 @@ import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { getSchedule, getSemesters } from '@/api/edu'
 
+const loading = ref(false)
 const currentWeek = ref(1)
 const currentSemester = ref('')
 const semesters = ref<any[]>([])
@@ -182,11 +183,14 @@ function showDetail(course: any) {
 }
 
 async function fetchSchedule() {
+  loading.value = true
   try {
     const res = await getSchedule(currentSemester.value, currentWeek.value)
     courses.value = res.data || []
   } catch {
     ElMessage.error('获取课表失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -238,6 +242,7 @@ async function exportSchedule() {
 }
 
 onMounted(async () => {
+  loading.value = true
   try {
     const r = await getSemesters()
     semesters.value = r.data || []
@@ -246,6 +251,7 @@ onMounted(async () => {
       currentSemester.value = active.xqjc
     }
   } catch {}
-  fetchSchedule()
+  await fetchSchedule()
+  loading.value = false
 })
 </script>

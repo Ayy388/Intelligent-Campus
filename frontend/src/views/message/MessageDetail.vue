@@ -1,5 +1,5 @@
 <template>
-  <div class="flex gap-4 h-[calc(100vh-140px)]">
+  <div class="flex gap-4 h-[calc(100vh-140px)]" v-loading="loading">
     <div class="w-[280px] flex-shrink-0 bg-white rounded-xl border border-soft overflow-hidden flex flex-col animate__animated animate__fadeInUp">
       <div class="p-4 border-b border-wash font-semibold text-ink text-sm">消息</div>
       <div class="flex-1 overflow-y-auto scrollbar-thin">
@@ -59,18 +59,29 @@ const selectedId = ref<number | null>(null)
 const peerName = ref('')
 const inputText = ref('')
 const sending = ref(false)
+const loading = ref(false)
 const messageContainer = ref<HTMLElement | null>(null)
 
 async function fetchConvs() {
-  const r = await getConversations({ page: 1, size: 50 })
-  conversations.value = r.data.records
+  loading.value = true
+  try {
+    const r = await getConversations({ page: 1, size: 50 })
+    conversations.value = r.data.records
+  } finally {
+    loading.value = false
+  }
 }
 
 async function selectConversation(c: any) {
-  selectedId.value = c.id
-  peerName.value = c.peerName
-  const r = await getConversationMessages(c.id)
-  messages.value = r.data
+  loading.value = true
+  try {
+    selectedId.value = c.id
+    peerName.value = c.peerName
+    const r = await getConversationMessages(c.id)
+    messages.value = r.data
+  } finally {
+    loading.value = false
+  }
 }
 
 async function doSend() {

@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="animate__animated animate__fadeInUp flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-gray-900 tracking-tight">社团列表</h1>
       <button @click="showCreate"
@@ -184,7 +184,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createVisible=false">取消</el-button>
-        <el-button type="primary" @click="doCreate">创建</el-button>
+        <el-button type="primary" @click="doCreate" :loading="submitting">创建</el-button>
       </template>
     </el-dialog>
 
@@ -196,7 +196,7 @@
       </el-form>
       <template #footer>
         <el-button @click="applyVisible=false">取消</el-button>
-        <el-button type="primary" @click="submitApply">提交申请</el-button>
+        <el-button type="primary" @click="submitApply" :loading="submitting">提交申请</el-button>
       </template>
     </el-dialog>
 
@@ -207,7 +207,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editVisible=false">取消</el-button>
-        <el-button type="primary" @click="doEdit">保存</el-button>
+        <el-button type="primary" @click="doEdit" :loading="submitting">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -248,6 +248,8 @@ const applyReason = ref('')
 const editVisible = ref(false)
 const editForm = reactive({ name: '', description: '' })
 const editClubId = ref<number | null>(null)
+const loading = ref(false)
+const submitting = ref(false)
 
 const avatarGradients = [
   'linear-gradient(135deg, #667eea, #764ba2)',
@@ -301,18 +303,23 @@ function statusLabel(status: number) {
 }
 
 async function fetchClubs() {
-  const r = await getClubs()
-  let data = r.data || []
-  if (activeTab.value === 'my') {
-    try {
-      const memberships = await getMyMemberships()
-      const myClubIds = new Set((memberships.data || []).map((m: any) => m.clubId))
-      data = data.filter((c: any) => myClubIds.has(c.id) && (c.status === 1 || c.status === 3))
-    } catch { data = [] }
+  loading.value = true
+  try {
+    const r = await getClubs()
+    let data = r.data || []
+    if (activeTab.value === 'my') {
+      try {
+        const memberships = await getMyMemberships()
+        const myClubIds = new Set((memberships.data || []).map((m: any) => m.clubId))
+        data = data.filter((c: any) => myClubIds.has(c.id) && (c.status === 1 || c.status === 3))
+      } catch { data = [] }
+    }
+    total.value = data.length
+    const start = (page.value - 1) * pageSize
+    clubs.value = data.slice(start, start + pageSize)
+  } finally {
+    loading.value = false
   }
-  total.value = data.length
-  const start = (page.value - 1) * pageSize
-  clubs.value = data.slice(start, start + pageSize)
 }
 
 async function openDetail(club: any) {
@@ -322,11 +329,13 @@ async function openDetail(club: any) {
 }
 
 async function fetchMembers(clubId: number) {
+  loading.value = true
   try {
     const r = await getMembers(clubId)
     members.value = r.data || []
     myMemberInfo.value = members.value.find((m: any) => m.userId === userStore.userInfo?.id)
   } catch { members.value = [] }
+  finally { loading.value = false }
 }
 
 function showCreate() {
@@ -337,12 +346,14 @@ function showCreate() {
 
 async function doCreate() {
   if (!createForm.name.trim()) { ElMessage.warning('请输入社团名称'); return }
+  submitting.value = true
   try {
     await createClub(createForm)
     ElMessage.success('创建成功，请等待审核')
     createVisible.value = false
     fetchClubs()
   } catch { ElMessage.error('创建失败') }
+  finally { submitting.value = false }
 }
 
 function startApply(clubId: number | undefined) {
@@ -354,28 +365,41 @@ function startApply(clubId: number | undefined) {
 
 async function submitApply() {
   if (!applyClubId.value) return
+  submitting.value = true
   try {
     await applyMember(applyClubId.value, applyReason.value)
     ElMessage.success('申请已提交')
     applyVisible.value = false
     if (detailClub.value) fetchMembers(detailClub.value.id)
   } catch { ElMessage.error('申请失败') }
+  finally { submitting.value = false }
 }
 
 async function doApproveMember(id: number, status: number) {
-  await approveMember(id, status)
-  ElMessage.success(status === 1 ? '已通过' : '已拒绝')
-  if (detailClub.value) fetchMembers(detailClub.value.id)
+  submitting.value = true
+  try {
+    await approveMember(id, status)
+    ElMessage.success(status === 1 ? '已通过' : '已拒绝')
+    if (detailClub.value) fetchMembers(detailClub.value.id)
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function doApproveClub(id: number, status: number) {
-  await approveClub(id, status)
-  ElMessage.success(status === 1 ? '已通过' : '已拒绝')
-  fetchClubs()
-  detailVisible.value = false
+  submitting.value = true
+  try {
+    await approveClub(id, status)
+    ElMessage.success(status === 1 ? '已通过' : '已拒绝')
+    fetchClubs()
+    detailVisible.value = false
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function doApproveDisband(id: number, status: number) {
+  submitting.value = true
   try {
     await approveDisband(id, status)
     ElMessage.success(status === 1 ? '已确认解散' : '已拒绝解散')
@@ -383,6 +407,8 @@ async function doApproveDisband(id: number, status: number) {
     detailVisible.value = false
   } catch (e) {
     ElMessage.error('操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -398,12 +424,16 @@ function showEdit(c: any) { editClubId.value = c.id; editForm.name = c.name; edi
 async function doEdit() {
   if (!editClubId.value) return
   if (!editForm.name.trim()) { ElMessage.warning('请输入社团名称'); return }
+  submitting.value = true
   try { await updateClub(editClubId.value, editForm); ElMessage.success('修改成功'); editVisible.value = false; fetchClubs() } catch { ElMessage.error('修改失败') }
+  finally { submitting.value = false }
 }
 
 async function doDeleteClub(id: number) {
   try { await ElMessageBox.confirm('确认删除该社团？', '提示', { type: 'warning' }) } catch { return }
+  submitting.value = true
   try { await deleteClub(id); ElMessage.success('已删除'); fetchClubs() } catch { ElMessage.error('删除失败') }
+  finally { submitting.value = false }
 }
 
 onMounted(fetchClubs)
