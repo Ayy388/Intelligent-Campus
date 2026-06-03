@@ -24,6 +24,11 @@
         请先选择一门课程
       </div>
 
+      <div v-else-if="studentsLoading" class="flex flex-col items-center justify-center py-10">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <span class="text-mist text-sm mt-3">加载学生数据中...</span>
+      </div>
+
       <div v-else-if="students.length === 0" class="text-center text-mist py-10 text-sm">
         该课程暂无选课学生
       </div>
@@ -36,7 +41,6 @@
           </span>
           <el-button type="primary" size="small" @click="submitAllGrades" :loading="submitting">批量提交成绩</el-button>
         </div>
-        <div v-loading="studentsLoading" element-loading-text="加载学生数据中...">
         <el-table :data="filteredStudents" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
           <el-table-column prop="studentUsername" label="学号" width="100" />
@@ -81,7 +85,6 @@
             </template>
           </el-table-column>
         </el-table>
-        </div>
       </div>
     </div>
   </div>
