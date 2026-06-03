@@ -100,6 +100,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (sel == null || !sel.getStudentId().equals(studentId))
             throw new BusinessException("选课记录不存在");
         if (sel.getStatus() == 0) throw new BusinessException("已退课");
+        if ("auto".equals(sel.getSelectType()))
+            throw new BusinessException("该课程为系统分配的必修课，无法退课");
         Course course = courseMapper.selectById(sel.getCourseId());
         if (course == null) throw new BusinessException("课程不存在");
         if (course.getStatus() == 2) throw new BusinessException("课程已确认，无法退课");
@@ -112,7 +114,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public List<CourseSelection> getMySelections(Long studentId) {
         List<CourseSelection> list = selMapper.selectList(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getStudentId, studentId)
-                .eq(CourseSelection::getStatus, 1));
+                .eq(CourseSelection::getStatus, 1)
+                .eq(CourseSelection::getSelectType, "manual"));
         for (CourseSelection s : list) {
             Course course = courseMapper.selectById(s.getCourseId());
             if (course != null) {
@@ -136,7 +139,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             com.campus.module.sys.entity.SysUser student = userMapper.selectById(s.getStudentId());
             if (student != null) {
                 s.setStudentName(student.getRealName());
-                s.setStudentClassName(student.getClassName());
+                s.setStudentUsername(student.getUsername());
+                if (student.getClassId() != null) {
+                    com.campus.module.sys.entity.SysClass c = sysClassMapper.selectById(student.getClassId());
+                    s.setStudentClassName(c != null ? c.getClassName() : "");
+                }
                 if (student.getDepartmentId() != null) {
                     com.campus.module.sys.entity.SysDepartment dept = sysDepartmentMapper.selectById(student.getDepartmentId());
                     s.setStudentDepartment(dept != null ? dept.getName() : "");
@@ -203,7 +210,21 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     public List<Grade> getCourseGrades(Long courseId) {
-        return gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getCourseId, courseId));
+        List<Grade> list = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getCourseId, courseId));
+        for (Grade g : list) {
+            if (g.getStudentId() != null) {
+                com.campus.module.sys.entity.SysUser student = userMapper.selectById(g.getStudentId());
+                if (student != null) {
+                    g.setStudentName(student.getRealName());
+                    g.setStudentUsername(student.getUsername());
+                }
+            }
+            if (g.getCourseId() != null) {
+                com.campus.module.edu.entity.Course course = courseMapper.selectById(g.getCourseId());
+                if (course != null) g.setCourseName(course.getCourseName());
+            }
+        }
+        return list;
     }
 
     @Override

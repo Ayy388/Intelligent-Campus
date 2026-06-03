@@ -3,7 +3,7 @@
     <div class="mb-6 flex items-center justify-between">
       <div>
         <h2 class="text-2xl font-bold text-ink m-0">我的选课</h2>
-        <p class="text-steel text-sm mt-1">查看和管理已选课程</p>
+        <p class="text-steel text-sm mt-1">查看已选择的选修课程</p>
       </div>
       <el-button type="primary" @click="fetchData" :loading="loading">刷新</el-button>
     </div>
@@ -70,7 +70,7 @@
         <path d="M8 8h8M8 12h8M8 16h5" stroke="#CBD5E1" stroke-width="1.5" stroke-linecap="round"/>
       </svg>
       <p class="text-steel text-base font-medium mb-1.5">暂无选课记录</p>
-      <p class="text-mist text-sm">前往在线选课页面选择感兴趣的课程</p>
+      <p class="text-mist text-sm">您尚未选择任何选修课，前往在线选课页面选择感兴趣的课程</p>
       <el-button type="primary" class="!mt-4 !rounded-xl" @click="$router.push('/edu/selection')">
         前往选课
       </el-button>

@@ -138,6 +138,7 @@
           <el-menu-item index="/manage/users?role=admin">管理员管理</el-menu-item>
           <el-menu-item index="/manage/courses">课程管理</el-menu-item>
           <el-menu-item index="/manage/semesters">学期管理</el-menu-item>
+          <el-menu-item index="/manage/training-plans">培养方案管理</el-menu-item>
         </el-sub-menu>
       </el-menu>
     </div>

@@ -54,6 +54,29 @@
       </div>
     </div>
 
+    <!-- 未安排时间的课程 -->
+    <div v-if="unscheduledCourses.length > 0" class="mt-6 bg-white rounded-xl border border-soft p-6">
+      <h3 class="text-base font-semibold text-ink mb-3">
+        未安排时间的课程（共 {{ unscheduledCourses.length }} 门）
+      </h3>
+      <div class="flex flex-wrap gap-3">
+        <div
+          v-for="course in unscheduledCourses"
+          :key="course.id"
+          class="flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer hover:bg-cloud transition-colors"
+          :style="{ backgroundColor: getCourseColor(course.id) + '15' }"
+          @click="showDetail(course)"
+        >
+          <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ backgroundColor: getCourseColor(course.id) }" />
+          <div>
+            <span class="text-sm font-medium text-ink">{{ course.courseName }}</span>
+            <span class="text-xs text-ash ml-2">{{ course.teacherName || '待分配教师' }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="mt-2 text-xs text-ash">提示：课程尚未安排上课时间和地点，请联系教师或管理员</div>
+    </div>
+
     <div class="mt-4 text-sm text-ash">
       <el-icon class="mr-1 align-middle"><InfoFilled /></el-icon>
       <span>提示：点击课程卡片查看详情</span>
@@ -91,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { getSchedule, getSemesters } from '@/api/edu'
@@ -118,16 +141,35 @@ const courseColors = [
   '#EC4899', '#06B6D4', '#6366F1', '#14B8A6', '#F97316'
 ]
 
+const unscheduledCourses = computed(() =>
+  courses.value.filter(c => {
+    if (!c.schedule) return true
+    try {
+      const parsed = JSON.parse(c.schedule)
+      const arr = Array.isArray(parsed) ? parsed : [parsed]
+      return arr.length === 0
+    } catch { return true }
+  })
+)
+
 function getCourseColor(id: number): string {
   return courseColors[id % courseColors.length]
+}
+
+function matchesWeek(sched: any, week: number): boolean {
+  if (!sched.weeks || sched.weeks === 'all') return true
+  if (sched.weeks === 'odd') return week % 2 === 1
+  if (sched.weeks === 'even') return week % 2 === 0
+  return true
 }
 
 function getCourseForSlot(day: number, timeSlot: number): any[] {
   return courses.value.filter(c => {
     if (!c.schedule) return false
     try {
-      const sched = JSON.parse(c.schedule)
-      return sched.day === day && sched.timeSlot === timeSlot
+      const parsed = JSON.parse(c.schedule)
+      const arr = Array.isArray(parsed) ? parsed : [parsed]
+      return arr.some(s => s.day === day && s.timeSlot === timeSlot && matchesWeek(s, currentWeek.value))
     } catch {
       return false
     }
@@ -197,7 +239,7 @@ async function exportSchedule() {
 
 onMounted(async () => {
   try {
-    const r = await getSemesters({ status: 'active' })
+    const r = await getSemesters()
     semesters.value = r.data || []
     const active = semesters.value.find((s: any) => s.status === 1)
     if (active) {

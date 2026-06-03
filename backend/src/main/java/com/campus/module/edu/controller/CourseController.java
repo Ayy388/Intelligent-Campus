@@ -178,36 +178,36 @@ public class CourseController {
         }
     }
 
-    @PostMapping("/{id}/assign-classes")
+    @PostMapping("/courses/{id}/assign-classes")
     public Result<Void> assignClasses(@PathVariable Long id, @RequestBody List<Long> classIds) {
         courseService.assignRequiredCourse(id, classIds);
         return Result.ok();
     }
 
-    @GetMapping("/{id}/classes")
+    @GetMapping("/courses/{id}/classes")
     public Result<List<CourseClass>> getClasses(@PathVariable Long id) {
         return Result.ok(courseService.getCourseClasses(id));
     }
 
-    @PutMapping("/{id}/classes")
+    @PutMapping("/courses/{id}/classes")
     public Result<Void> setClasses(@PathVariable Long id, @RequestBody List<CourseClass> classes) {
         courseService.setCourseClasses(id, classes);
         return Result.ok();
     }
 
-    @PostMapping("/{id}/enroll")
+    @PostMapping("/courses/{id}/enroll")
     public Result<Void> enroll(@PathVariable Long id, Authentication auth) {
         courseService.enrollElective(id, getUserId(auth));
         return Result.ok();
     }
 
-    @PostMapping("/{id}/confirm-opening")
+    @PostMapping("/courses/{id}/confirm-opening")
     public Result<Void> confirmOpening(@PathVariable Long id) {
         courseService.confirmCourse(id);
         return Result.ok();
     }
 
-    @PostMapping("/{id}/cancel-opening")
+    @PostMapping("/courses/{id}/cancel-opening")
     public Result<Void> cancelOpening(@PathVariable Long id) {
         courseService.cancelCourse(id);
         return Result.ok();

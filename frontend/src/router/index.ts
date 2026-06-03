@@ -47,7 +47,8 @@ const routes = [
       { path: 'ai/chat', name: 'AiChat', component: () => import('@/views/ai/AiChat.vue') },
       { path: 'manage/users', name: 'UserManage', component: () => import('@/views/manage/UserManage.vue') },
       { path: 'manage/courses', name: 'CourseManage', component: () => import('@/views/manage/CourseManage.vue') },
-      { path: 'manage/semesters', name: 'SemesterManage', component: () => import('@/views/manage/SemesterManage.vue') }
+      { path: 'manage/semesters', name: 'SemesterManage', component: () => import('@/views/manage/SemesterManage.vue') },
+      { path: 'manage/training-plans', name: 'TrainingPlanManage', component: () => import('@/views/manage/TrainingPlanManage.vue') },
     ]
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' }

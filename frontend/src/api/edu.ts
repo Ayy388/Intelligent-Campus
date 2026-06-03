@@ -113,3 +113,48 @@ export function confirmOpening(courseId: number) {
 export function cancelOpening(courseId: number) {
   return request.post(`/edu/courses/${courseId}/cancel-opening`)
 }
+
+// ===== Training Plans =====
+export function getTrainingPlans(params: any) {
+  return request.get('/edu/training-plans', { params })
+}
+
+export function getTrainingPlan(id: number) {
+  return request.get(`/edu/training-plans/${id}`)
+}
+
+export function createTrainingPlan(data: any) {
+  return request.post('/edu/training-plans', data)
+}
+
+export function updateTrainingPlan(id: number, data: any) {
+  return request.put(`/edu/training-plans/${id}`, data)
+}
+
+export function deleteTrainingPlan(id: number) {
+  return request.delete(`/edu/training-plans/${id}`)
+}
+
+export function getPlanItems(planId: number, semesterNumber: number) {
+  return request.get(`/edu/training-plans/${planId}/items`, { params: { semesterNumber } })
+}
+
+export function addPlanItem(planId: number, data: any) {
+  return request.post(`/edu/training-plans/${planId}/items`, data)
+}
+
+export function updatePlanItem(itemId: number, data: any) {
+  return request.put(`/edu/training-plans/items/${itemId}`, data)
+}
+
+export function deletePlanItem(itemId: number) {
+  return request.delete(`/edu/training-plans/items/${itemId}`)
+}
+
+export function generateSemester(planId: number, semesterNumber: number) {
+  return request.post(`/edu/training-plans/${planId}/generate/${semesterNumber}`)
+}
+
+export function getMyTrainingPlan() {
+  return request.get('/edu/training-plans/my-plan')
+}

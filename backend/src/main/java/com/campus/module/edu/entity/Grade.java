@@ -21,4 +21,6 @@ public class Grade {
     private String courseName;
     @TableField(exist = false)
     private String studentName;
+    @TableField(exist = false)
+    private String studentUsername;
 }

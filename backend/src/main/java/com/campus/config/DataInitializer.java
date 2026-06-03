@@ -469,6 +469,38 @@ public class DataInitializer implements CommandLineRunner {
             )
         """);
 
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS edu_training_plan (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                major_id BIGINT NOT NULL,
+                grade_id BIGINT NOT NULL,
+                total_semesters INT DEFAULT 8,
+                status TINYINT DEFAULT 0,
+                description VARCHAR(500),
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_plan_major_grade (major_id, grade_id)
+            )
+        """);
+
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS edu_training_plan_item (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                plan_id BIGINT NOT NULL,
+                semester_number INT NOT NULL,
+                course_name VARCHAR(100) NOT NULL,
+                course_code VARCHAR(20),
+                credit DECIMAL(3,1) DEFAULT 0,
+                hours INT DEFAULT 0,
+                is_required TINYINT(1) DEFAULT 1,
+                status TINYINT DEFAULT 0,
+                generated_course_id BIGINT,
+                sort_order INT DEFAULT 0,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """);
+
         // 迁移数据：将 sys_user.class_name 中的班级名称转为 sys_class 记录，并更新 class_id
         try {
             Integer needMigrate = jdbcTemplate.queryForObject(
@@ -574,111 +606,6 @@ public class DataInitializer implements CommandLineRunner {
             }
         } catch (Exception ignored) {}
 
-        Integer clubCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM club_info", Integer.class);
-        if (clubCount != null && clubCount == 0) {
-            // 获取s001用户的ID
-            Long s001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 's001'", Long.class);
-            if (s001Id != null) {
-                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
-                    "计算机协会", "编程、算法、人工智能兴趣社团", s001Id, 1, 1);
-                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
-                    "羽毛球社", "羽毛球运动交流与训练", s001Id, 1, 1);
-                jdbcTemplate.update("INSERT INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
-                    "摄影社", "摄影技巧分享与外拍活动", s001Id, 1, 1);
-                
-                // 获取刚插入的社团ID并添加社长成员
-                Long club1Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '计算机协会'", Long.class);
-                Long club2Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '羽毛球社'", Long.class);
-                Long club3Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '摄影社'", Long.class);
-                
-                if (club1Id != null) {
-                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
-                        club1Id, s001Id, "president", 1);
-                }
-                if (club2Id != null) {
-                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
-                        club2Id, s001Id, "president", 1);
-                }
-                if (club3Id != null) {
-                    jdbcTemplate.update("INSERT INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)",
-                        club3Id, s001Id, "president", 1);
-                }
-            } else {
-                // 如果找不到s001用户，使用原来的逻辑
-                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                    "计算机协会", "编程、算法、人工智能兴趣社团", 0, 1);
-                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                    "羽毛球社", "羽毛球运动交流与训练", 0, 1);
-                jdbcTemplate.update("INSERT INTO club_info (name, description, member_count, status) VALUES (?,?,?,?)",
-                    "摄影社", "摄影技巧分享与外拍活动", 0, 1);
-            }
-        }
-
-        Integer venueCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM club_venue", Integer.class);
-        if (venueCount != null && venueCount == 0) {
-            jdbcTemplate.update("INSERT INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
-                "301 报告厅", "教学楼A座3楼", 200, "大型报告厅，配备投影音响");
-            jdbcTemplate.update("INSERT INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
-                "篮球场", "东区体育场", 50, "标准室外篮球场");
-            jdbcTemplate.update("INSERT INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
-                "B101 活动室", "教学楼B座1楼", 30, "小型多功能活动室");
-            jdbcTemplate.update("INSERT INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
-                "阶梯教室", "教学楼C座2楼", 150, "可容纳150人的阶梯教室");
-        }
-
-        Integer courseCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM edu_course", Integer.class);
-        if (courseCount != null && courseCount == 0) {
-            // 获取教师ID
-            Long teacherId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 't001'", Long.class);
-            if (teacherId != null) {
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "CS101", "Java程序设计", teacherId, 4.0, 64, "2026-春", "教3-201", 
-                    "{\"day\":1,\"timeSlot\":1}", 1, 20, 50, 0, "Java基础编程入门课程", 1, "required");
-                
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "CS102", "数据结构与算法", teacherId, 3.5, 56, "2026-春", "教3-302", 
-                    "{\"day\":2,\"timeSlot\":2}", 1, 20, 45, 0, "算法与数据结构课程", 1, "required");
-                
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "CS201", "操作系统", teacherId, 3.0, 48, "2026-春", "教4-105", 
-                    "{\"day\":3,\"timeSlot\":3}", 1, 20, 40, 0, "操作系统原理课程", 1, "required");
-                
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "ENG101", "大学英语", teacherId, 3.0, 48, "2026-春", "外语楼-202", 
-                    "{\"day\":4,\"timeSlot\":1}", 1, 20, 50, 0, "大学英语读写译", 1, "required");
-                
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "MATH201", "高等数学", teacherId, 5.0, 80, "2026-春", "教1-101", 
-                    "{\"day\":5,\"timeSlot\":2}", 1, 20, 100, 0, "高等数学微积分", 1, "required");
-                
-                jdbcTemplate.update(
-                    "INSERT INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, description, status, course_type) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "CS301", "计算机网络", teacherId, 3.0, 48, "2026-春", "教3-401", 
-                    "{\"day\":2,\"timeSlot\":4}", 1, 20, 35, 0, "计算机网络基础知识", 1, "required");
-            }
-        }
-
-        Integer semesterCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM edu_semester", Integer.class);
-        if (semesterCount != null && semesterCount == 0) {
-            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
-                "2025-2026学年", "202502", "2025-2026学年第二学期", java.sql.Date.valueOf("2026-03-02"), java.sql.Date.valueOf("2026-09-04"), 29, 1);
-            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
-                "2025-2026学年", "202501", "2025-2026学年第一学期", java.sql.Date.valueOf("2025-09-08"), java.sql.Date.valueOf("2026-02-15"), 23, 0);
-            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
-                "2024-2025学年", "202402", "2024-2025学年第二学期", java.sql.Date.valueOf("2025-02-17"), java.sql.Date.valueOf("2025-09-03"), 29, 0);
-            jdbcTemplate.update("INSERT INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
-                "2024-2025学年", "202401", "2024-2025学年第一学期", java.sql.Date.valueOf("2024-09-02"), java.sql.Date.valueOf("2025-01-17"), 20, 0);
-        }
-
         // --- 活动中心 ---
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS activity_center (
@@ -737,61 +664,6 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
 
-        Integer activityCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM activity_center", Integer.class);
-        if (activityCount != null && activityCount == 0) {
-            Long adminId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 'admin'", Long.class);
-            Long teacherId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 't001'", Long.class);
-            Long s001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 's001'", Long.class);
-
-            if (adminId != null && teacherId != null && s001Id != null) {
-                jdbcTemplate.update(
-                    "INSERT INTO activity_center (title, description, location, start_time, end_time, max_participants, category, creator_id, creator_role, status) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    "校园编程马拉松", "24小时编程挑战赛，欢迎各路高手参加！组队或个人参赛均可。", "体育馆",
-                    java.sql.Timestamp.valueOf("2026-06-15 09:00:00"), java.sql.Timestamp.valueOf("2026-06-16 09:00:00"),
-                    50, "academic", s001Id, "club_president", 0);
-
-                jdbcTemplate.update(
-                    "INSERT INTO activity_center (title, description, location, start_time, end_time, max_participants, current_participants, category, creator_id, creator_role, status, approver_id, approve_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "摄影作品展", "全校摄影爱好者作品展，欢迎参观投稿。", "图书馆一楼展厅",
-                    java.sql.Timestamp.valueOf("2026-06-20 10:00:00"), java.sql.Timestamp.valueOf("2026-06-22 17:00:00"),
-                    200, 0, "cultural", teacherId, "teacher", 1, adminId,
-                    java.sql.Timestamp.valueOf("2026-05-30 10:00:00"));
-
-                jdbcTemplate.update(
-                    "INSERT INTO activity_center (title, description, location, start_time, end_time, category, creator_id, creator_role, status, approver_id, reject_reason, approve_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "校外聚餐活动", "组织同学到校外餐厅聚餐联谊。", "校外美食街",
-                    java.sql.Timestamp.valueOf("2026-07-01 18:00:00"), java.sql.Timestamp.valueOf("2026-07-01 21:00:00"),
-                    "other", s001Id, "club_president", 2, adminId, "活动内容不符合校园安全管理规定",
-                    java.sql.Timestamp.valueOf("2026-05-29 14:00:00"));
-
-                jdbcTemplate.update(
-                    "INSERT INTO activity_center (title, description, location, start_time, end_time, max_participants, current_participants, category, creator_id, creator_role, status, approver_id, approve_time, confirm_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    "羽毛球友谊赛", "社团羽毛球友谊赛，欢迎同学们报名参加。", "东区体育馆",
-                    java.sql.Timestamp.valueOf("2026-05-10 14:00:00"), java.sql.Timestamp.valueOf("2026-05-10 18:00:00"),
-                    30, 28, "sports", adminId, "admin", 3, adminId,
-                    java.sql.Timestamp.valueOf("2026-05-05 10:00:00"),
-                    java.sql.Timestamp.valueOf("2026-05-10 19:00:00"));
-
-                Long confirmedActId = jdbcTemplate.queryForObject(
-                    "SELECT id FROM activity_center WHERE title = '羽毛球友谊赛'", Long.class);
-                if (confirmedActId != null) {
-                    jdbcTemplate.update("INSERT IGNORE INTO activity_registration (activity_id, user_id) VALUES (?,?)",
-                        confirmedActId, s001Id);
-                }
-
-                // 添加一个社团关联的活动
-                Long clubId = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '计算机协会'", Long.class);
-                if (clubId != null) {
-                    jdbcTemplate.update(
-                        "INSERT INTO activity_center (title, description, location, start_time, end_time, max_participants, category, club_id, creator_id, creator_role, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                        "编程技术分享会", "计算机协会内部技术分享，主题：Spring Boot 实战经验", "理学院303教室",
-                        java.sql.Timestamp.valueOf("2026-06-25 14:00:00"), java.sql.Timestamp.valueOf("2026-06-25 17:00:00"),
-                        30, "academic", clubId, s001Id, "club_president", 0);
-            }
-        }
-    }
-
         // 填充完整测试数据
         try {
             seedComprehensiveData(passwordEncoder.encode("123456"));
@@ -816,7 +688,28 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM growth_profile");
         jdbcTemplate.update("DELETE FROM edu_grade");
         jdbcTemplate.update("DELETE FROM edu_course_selection");
-        jdbcTemplate.update("DELETE FROM edu_course WHERE course_code IN ('CS401','CS402','EC201','EC202','EE301','EE302','FL101')");
+        jdbcTemplate.update("DELETE FROM edu_course_class");
+        jdbcTemplate.update("DELETE FROM edu_course WHERE course_code IN ('CS401','CS402','EC201','EC202','EE301','EE302','FL101','CS101','CS102','CS103','CS104','CS105','CS201','ENG101','MATH201','CS301','EC101','EC102','EC103','EC104','EC105','GED102','GED202','GED302','GED403','GED402')");
+        // 清理引用 sys_user 的外键表（按 FK 链顺序，必须在 sys_user DELETE 之前）
+        jdbcTemplate.update("DELETE FROM user_todo");
+        jdbcTemplate.update("DELETE FROM life_lost_found");
+        jdbcTemplate.update("DELETE FROM life_card_recharge");
+        jdbcTemplate.update("DELETE FROM admin_leave");
+        jdbcTemplate.update("DELETE FROM admin_notification");
+        jdbcTemplate.update("DELETE FROM activity_registration");
+        jdbcTemplate.update("DELETE FROM activity_center");
+        jdbcTemplate.update("DELETE FROM club_activity_enrollment");
+        jdbcTemplate.update("DELETE FROM club_activity");
+        jdbcTemplate.update("DELETE FROM club_venue_booking");
+        jdbcTemplate.update("DELETE FROM club_member");
+        jdbcTemplate.update("DELETE FROM club_info");
+        jdbcTemplate.update("DELETE FROM ai_message");
+        jdbcTemplate.update("DELETE FROM ai_conversation");
+        jdbcTemplate.update("DELETE FROM growth_checkin_record");
+        jdbcTemplate.update("DELETE FROM growth_checkin");
+        jdbcTemplate.update("DELETE FROM message_detail");
+        jdbcTemplate.update("DELETE FROM message_conversation");
+
         jdbcTemplate.update("DELETE FROM sys_class");
         jdbcTemplate.update("DELETE FROM sys_grade");
         jdbcTemplate.update("DELETE FROM sys_major");
@@ -824,9 +717,18 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM sys_user WHERE username LIKE 's%' AND username != 's001'");
         jdbcTemplate.update("DELETE FROM sys_user WHERE username LIKE 'c%' AND username != 'c001'");
         jdbcTemplate.update("DELETE FROM sys_user WHERE username LIKE 't%' AND username != 't001'");
+        jdbcTemplate.update("DELETE FROM edu_training_plan_item");
+        jdbcTemplate.update("DELETE FROM edu_training_plan");
+        jdbcTemplate.update("DELETE FROM edu_semester");
 
         try { jdbcTemplate.execute("ALTER TABLE sys_department ADD CONSTRAINT uk_department_name UNIQUE (name)"); } catch (Exception ignored) {}
         try { jdbcTemplate.execute("ALTER TABLE sys_major ADD CONSTRAINT uk_major_name UNIQUE (name, department_id)"); } catch (Exception ignored) {}
+
+        // === 学期 ===
+        jdbcTemplate.update("INSERT IGNORE INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+            "2025-2026学年", "202502", "2025-2026学年第二学期", java.sql.Date.valueOf("2026-03-02"), java.sql.Date.valueOf("2026-09-04"), 29, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
+            "2025-2026学年", "202501", "2025-2026学年第一学期", java.sql.Date.valueOf("2025-09-08"), java.sql.Date.valueOf("2026-02-15"), 23, 0);
 
         // === 1. 院系（2个） ===
         jdbcTemplate.update("INSERT IGNORE INTO sys_department (name) VALUES ('计算机科学与技术学院')");
@@ -841,15 +743,15 @@ public class DataInitializer implements CommandLineRunner {
         long m2 = jdbcTemplate.queryForObject("SELECT id FROM sys_major WHERE name='经济学'", Long.class);
 
         // === 3. 年级 ===
-        jdbcTemplate.update("INSERT IGNORE INTO sys_grade (name, year) VALUES ('2024级',2024)");
-        long g24 = jdbcTemplate.queryForObject("SELECT id FROM sys_grade WHERE year=2024", Long.class);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_grade (name, year) VALUES ('2025级',2025)");
+        long g25 = jdbcTemplate.queryForObject("SELECT id FROM sys_grade WHERE year=2025", Long.class);
 
         // === 4. 班级（各2个，共4个） ===
         Object[][] classes = {
-            {"计算机科学与技术2024级1班", d1, m1, g24},
-            {"计算机科学与技术2024级2班", d1, m1, g24},
-            {"经济学2024级1班", d2, m2, g24},
-            {"经济学2024级2班", d2, m2, g24},
+            {"计算机科学与技术2025级1班", d1, m1, g25},
+            {"计算机科学与技术2025级2班", d1, m1, g25},
+            {"经济学2025级1班", d2, m2, g25},
+            {"经济学2025级2班", d2, m2, g25},
         };
         for (Object[] c : classes) {
             jdbcTemplate.update("INSERT IGNORE INTO sys_class (class_name, department_id, major_id, grade_id) VALUES (?,?,?,?)", c);
@@ -862,15 +764,54 @@ public class DataInitializer implements CommandLineRunner {
         // 更新 run() 创建的初始用户的院系/班级指向
         jdbcTemplate.update("UPDATE sys_user SET department_id=? WHERE username='t001'", d1);
         jdbcTemplate.update("UPDATE sys_user SET department_id=? WHERE username='c001'", d1);
-        jdbcTemplate.update("UPDATE sys_user SET department_id=?, class_id=(SELECT id FROM sys_class WHERE class_name='计算机科学与技术2024级1班') WHERE username='s001'", d1);
+        jdbcTemplate.update("UPDATE sys_user SET department_id=?, class_id=(SELECT id FROM sys_class WHERE class_name='计算机科学与技术2025级1班'), major_id=(SELECT major_id FROM sys_class WHERE class_name='计算机科学与技术2025级1班') WHERE username='s001'", d1);
 
-        // === 5. 教师（2位） ===
+        // === 5. 教师（10位，各教一门课） ===
         jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
             "t001", pwd, "张教授", teacherRoleId, d1, 1);
         jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
             "t002", pwd, "李教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t003", pwd, "陈教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t004", pwd, "王教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t005", pwd, "刘教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t006", pwd, "赵教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t007", pwd, "周教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t008", pwd, "吴教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t009", pwd, "郑教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t010", pwd, "冯教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t011", pwd, "孙教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t012", pwd, "马教授", teacherRoleId, d1, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t013", pwd, "钱教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t014", pwd, "许教授", teacherRoleId, d2, 1);
+        jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
+            "t015", pwd, "夏教授", teacherRoleId, d1, 1);
         long t001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t001'", Long.class);
         long t002Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t002'", Long.class);
+        long t003Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t003'", Long.class);
+        long t004Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t004'", Long.class);
+        long t005Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t005'", Long.class);
+        long t006Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t006'", Long.class);
+        long t007Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t007'", Long.class);
+        long t008Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t008'", Long.class);
+        long t009Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t009'", Long.class);
+        long t010Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t010'", Long.class);
+        long t011Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t011'", Long.class);
+        long t012Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t012'", Long.class);
+        long t013Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t013'", Long.class);
+        long t014Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t014'", Long.class);
+        long t015Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username='t015'", Long.class);
 
         // === 6. 辅导员（2位，各管一个院系） ===
         jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, status) VALUES (?,?,?,?,?,?)",
@@ -886,8 +827,8 @@ public class DataInitializer implements CommandLineRunner {
 
         // === 8. 学生（每班70人，共280人） ===
         String[] classNames = {
-            "计算机科学与技术2024级1班", "计算机科学与技术2024级2班",
-            "经济学2024级1班", "经济学2024级2班"
+            "计算机科学与技术2025级1班", "计算机科学与技术2025级2班",
+            "经济学2025级1班", "经济学2025级2班"
         };
         String[] studentNames = {
             "陈明","李华","王芳","张伟","刘洋","杨静","赵磊","黄丽","周强","吴敏",
@@ -903,50 +844,286 @@ public class DataInitializer implements CommandLineRunner {
                 String sid = String.format("s%03d", i + 1);
                 String clazz = classNames[i / 70]; // 每70人一个班
                 Long classId = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name=?", Long.class, clazz);
-                jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, class_id, gender, status) VALUES (?,?,?,?,?,?,?,?)",
+                jdbcTemplate.update("INSERT IGNORE INTO sys_user (username, password, real_name, role_id, department_id, class_id, major_id, gender, status) VALUES (?,?,?,?,?,?,?,?,?)",
                     sid, pwd, studentNames[i % 50], studentRoleId,
                     jdbcTemplate.queryForObject("SELECT department_id FROM sys_class WHERE id=?", Long.class, classId),
-                    classId, (long)(i % 2), 1);
+                    classId,
+                    jdbcTemplate.queryForObject("SELECT major_id FROM sys_class WHERE id=?", Long.class, classId),
+                    (long)(i % 2), 1);
 
                 Long userId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username=?", Long.class, sid);
                 jdbcTemplate.update("INSERT IGNORE INTO growth_profile (student_id, gpa) VALUES (?,?)",
-                    userId, 2.0 + (Math.random() * 2.5));
+                    userId, 2.0 + (Math.random() * 2.0));
             }
         }
 
-        // === 9. 课程（每个老师2门，共4门） ===
+        // === 9. 课程（每个专业5门必修课，共10门，教师已分配） ===
         long courseCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM edu_course", Long.class);
-        if (courseCount < 10) {
-            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,20,70,0,1,'required')",
-                "CS401", "数据库原理", t001Id, 3.5, 56, "2026-春", "教2-201", "{\"day\":1,\"timeSlot\":3}");
-            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,20,70,0,1,'required')",
-                "CS402", "数据结构与算法", t001Id, 4.0, 64, "2026-春", "教2-202", "{\"day\":3,\"timeSlot\":2}");
-            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,20,70,0,1,'required')",
-                "EC201", "微观经济学", t002Id, 3.0, 48, "2026-春", "教5-101", "{\"day\":1,\"timeSlot\":4}");
-            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,20,70,0,1,'required')",
-                "EC202", "宏观经济学", t002Id, 3.0, 48, "2026-春", "教5-102", "{\"day\":3,\"timeSlot\":4}");
+        if (courseCount < 20) {
+            // 计算机科学与技术学院 — 5门专业课（每位老师一门课，每周2时段）
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "CS101", "程序设计基础", t001Id, 4.0, 64, "202502", "教3-201", "[{\"day\":1,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":3,\"timeSlot\":2,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "CS102", "数据结构与算法", t003Id, 4.0, 64, "202502", "教3-202", "[{\"day\":2,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":4,\"timeSlot\":2,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "CS103", "计算机网络", t004Id, 3.0, 48, "202502", "教3-301", "[{\"day\":3,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":5,\"timeSlot\":2,\"weeks\":\"even\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "CS104", "操作系统", t005Id, 4.0, 64, "202502", "教3-302", "[{\"day\":1,\"timeSlot\":3,\"weeks\":\"all\"},{\"day\":4,\"timeSlot\":1,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "CS105", "数据库原理", t006Id, 3.0, 48, "202502", "教3-401", "[{\"day\":2,\"timeSlot\":3,\"weeks\":\"all\"},{\"day\":5,\"timeSlot\":3,\"weeks\":\"odd\"}]", 16);
+
+            // 经济管理学院 — 5门专业课（每位老师一门课，每周2时段）
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "EC101", "微观经济学", t002Id, 3.0, 48, "202502", "教5-101", "[{\"day\":2,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":4,\"timeSlot\":2,\"weeks\":\"odd\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "EC102", "宏观经济学", t007Id, 3.0, 48, "202502", "教5-102", "[{\"day\":3,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":5,\"timeSlot\":2,\"weeks\":\"even\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "EC103", "计量经济学", t008Id, 4.0, 64, "202502", "教5-201", "[{\"day\":1,\"timeSlot\":3,\"weeks\":\"all\"},{\"day\":4,\"timeSlot\":1,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "EC104", "国际经济学", t009Id, 3.0, 48, "202502", "教5-202", "[{\"day\":2,\"timeSlot\":3,\"weeks\":\"all\"},{\"day\":5,\"timeSlot\":3,\"weeks\":\"odd\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
+                "EC105", "财政学", t010Id, 3.0, 48, "202502", "教5-301", "[{\"day\":1,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":3,\"timeSlot\":2,\"weeks\":\"even\"}]", 16);
+
+            // 公共课（跨专业共享，容量300容纳所有学生）
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,300,0,2,'required')",
+                "GED102", "大学英语(二)", t011Id, 4.0, 64, "202502", "教1-101", "[{\"day\":3,\"timeSlot\":3,\"weeks\":\"all\"},{\"day\":5,\"timeSlot\":1,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,300,0,2,'required')",
+                "GED202", "线性代数", t012Id, 4.0, 64, "202502", "教1-102", "[{\"day\":1,\"timeSlot\":2,\"weeks\":\"all\"},{\"day\":4,\"timeSlot\":3,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,300,0,2,'required')",
+                "GED302", "中国近现代史纲要", t013Id, 3.0, 48, "202502", "教1-201", "[{\"day\":2,\"timeSlot\":4,\"weeks\":\"all\"}]", 20);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,300,0,2,'required')",
+                "GED403", "形势与政策", t014Id, 2.0, 16, "202502", "教1-202", "[{\"day\":4,\"timeSlot\":4,\"weeks\":\"odd\"}]", 20);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,300,0,2,'required')",
+                "GED402", "体育(二)", t015Id, 1.0, 32, "202502", "体育馆", "[{\"day\":1,\"timeSlot\":4,\"weeks\":\"all\"}]", 16);
+
+            // 9b. 课程-班级关联（CourseClass）
+            long csClass1Id = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='计算机科学与技术2025级1班'", Long.class);
+            long csClass2Id = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='计算机科学与技术2025级2班'", Long.class);
+            long ecClass1Id = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='经济学2025级1班'", Long.class);
+            long ecClass2Id = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='经济学2025级2班'", Long.class);
+            for (String code : new String[]{"CS101","CS102","CS103","CS104","CS105"}) {
+                long cid = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=?", Long.class, code);
+                jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, csClass1Id);
+                jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, csClass2Id);
+            }
+            for (String code : new String[]{"EC101","EC102","EC103","EC104","EC105"}) {
+                long cid = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=?", Long.class, code);
+                jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, ecClass1Id);
+                jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, ecClass2Id);
+            }
+            // 公共课关联到所有班级
+            for (String code : new String[]{"GED102","GED202","GED302","GED403","GED402"}) {
+                long cid = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=?", Long.class, code);
+                for (long clsId : new long[]{csClass1Id, csClass2Id, ecClass1Id, ecClass2Id}) {
+                    jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, clsId);
+                }
+            }
         }
 
-        // === 10. 选课数据（前20名学生选课） ===
+        // === 10. 选课数据（所有学生自动分配到本专业5门必修课） ===
         long selectionCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM edu_course_selection", Long.class);
         if (selectionCount == 0) {
-            Long cs401Id = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code='CS401'", Long.class);
-            Long cs402Id = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code='CS402'", Long.class);
-            Long ec201Id = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code='EC201'", Long.class);
-            Long ec202Id = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code='EC202'", Long.class);
-            for (int i = 1; i <= 20; i++) {
+            String[] csCourses = {"CS101", "CS102", "CS103", "CS104", "CS105", "GED102", "GED202", "GED302", "GED403", "GED402"};
+            String[] ecCourses = {"EC101", "EC102", "EC103", "EC104", "EC105", "GED102", "GED202", "GED302", "GED403", "GED402"};
+            Long[] csIds = new Long[csCourses.length];
+            for (int j = 0; j < csCourses.length; j++) {
+                csIds[j] = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=?", Long.class, csCourses[j]);
+            }
+            Long[] ecIds = new Long[ecCourses.length];
+            for (int j = 0; j < ecCourses.length; j++) {
+                ecIds[j] = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=?", Long.class, ecCourses[j]);
+            }
+            Long csClass1 = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='计算机科学与技术2025级1班'", Long.class);
+            Long csClass2 = jdbcTemplate.queryForObject("SELECT id FROM sys_class WHERE class_name='计算机科学与技术2025级2班'", Long.class);
+            for (int i = 1; i <= 280; i++) {
                 Long sid = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username=?", Long.class, String.format("s%03d", i));
-                jdbcTemplate.update("INSERT IGNORE INTO edu_course_selection (student_id, course_id, semester, select_type) VALUES (?,?,'2026-春','auto')", sid, cs401Id);
-                jdbcTemplate.update("INSERT IGNORE INTO edu_course_selection (student_id, course_id, semester, select_type) VALUES (?,?,'2026-春','auto')", sid, cs402Id);
-                jdbcTemplate.update("INSERT IGNORE INTO edu_course_selection (student_id, course_id, semester, select_type) VALUES (?,?,'2026-春','auto')", sid, ec201Id);
-                if (i <= 10) {
-                    jdbcTemplate.update("INSERT IGNORE INTO edu_course_selection (student_id, course_id, semester, select_type) VALUES (?,?,'2026-春','auto')", sid, ec202Id);
-                }
-                if (i >= 11 && i <= 15) {
-                    jdbcTemplate.update("INSERT IGNORE INTO edu_grade (student_id, course_id, teacher_id, score, semester) VALUES (?,?,?,?,'2026-春')",
-                        sid, cs401Id, t001Id, 60 + (int)(Math.random() * 40));
+                Long classId = jdbcTemplate.queryForObject("SELECT class_id FROM sys_user WHERE id=?", Long.class, sid);
+                Long[] targetIds = (classId.equals(csClass1) || classId.equals(csClass2)) ? csIds : ecIds;
+                for (Long cid : targetIds) {
+                    jdbcTemplate.update("INSERT IGNORE INTO edu_course_selection (student_id, course_id, semester, select_type) VALUES (?,?,'202502','auto')", sid, cid);
                 }
             }
         }
+
+        // 必修课状态修正：已自动分配学生的课程应显示为"已确认"而非"选课中"
+        try {
+            jdbcTemplate.update("UPDATE edu_course SET status=2 WHERE course_type='required' AND status=1 AND enrolled>0");
+        } catch (Exception ignored) {}
+
+        // === 11. 培养方案示例数据（两个专业各一套） ===
+        long planCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM edu_training_plan", Long.class);
+        if (planCount == 0) {
+            Long csMajorId = jdbcTemplate.queryForObject("SELECT id FROM sys_major WHERE name='计算机科学与技术'", Long.class);
+            Long ecMajorId = jdbcTemplate.queryForObject("SELECT id FROM sys_major WHERE name='经济学'", Long.class);
+            Long grade2025 = jdbcTemplate.queryForObject("SELECT id FROM sys_grade WHERE year=2025", Long.class);
+
+            // 计算机科学与技术培养方案
+            jdbcTemplate.update("INSERT INTO edu_training_plan (name, major_id, grade_id, total_semesters, status) VALUES (?,?,?,8,1)",
+                "2025级计算机科学与技术培养方案", csMajorId, grade2025);
+            Long csPlanId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+            String[][] csSem1 = {
+                {"大学英语(一)", "GED101", "4.0", "64", "1"},
+                {"高等数学(一)", "GED201", "5.0", "80", "1"},
+                {"程序设计基础", "CS101", "4.0", "64", "1"},
+                {"思想道德修养与法律基础", "GED301", "3.0", "48", "1"},
+                {"体育(一)", "GED401", "1.0", "32", "1"}
+            };
+            for (int i = 0; i < csSem1.length; i++) {
+                jdbcTemplate.update("INSERT INTO edu_training_plan_item (plan_id, semester_number, course_name, course_code, credit, hours, is_required, sort_order) VALUES (?,1,?,?,?,?,1,?)",
+                    csPlanId, csSem1[i][0], csSem1[i][1], new java.math.BigDecimal(csSem1[i][2]), Integer.parseInt(csSem1[i][3]), i + 1);
+            }
+            String[][] csSem2 = {
+                {"程序设计基础", "CS101", "4.0", "64", "1"},
+                {"数据结构与算法", "CS102", "4.0", "64", "1"},
+                {"计算机网络", "CS103", "3.0", "48", "1"},
+                {"操作系统", "CS104", "4.0", "64", "1"},
+                {"数据库原理", "CS105", "3.0", "48", "1"},
+                {"大学英语(二)", "GED102", "4.0", "64", "1"},
+                {"线性代数", "GED202", "4.0", "64", "1"},
+                {"中国近现代史纲要", "GED302", "3.0", "48", "1"},
+                {"形势与政策", "GED403", "2.0", "16", "1"},
+                {"体育(二)", "GED402", "1.0", "32", "1"}
+            };
+            for (int i = 0; i < csSem2.length; i++) {
+                jdbcTemplate.update("INSERT INTO edu_training_plan_item (plan_id, semester_number, course_name, course_code, credit, hours, is_required, sort_order) VALUES (?,2,?,?,?,?,1,?)",
+                    csPlanId, csSem2[i][0], csSem2[i][1], new java.math.BigDecimal(csSem2[i][2]), Integer.parseInt(csSem2[i][3]), i + 1);
+            }
+
+            // 经济学培养方案
+            jdbcTemplate.update("INSERT INTO edu_training_plan (name, major_id, grade_id, total_semesters, status) VALUES (?,?,?,8,1)",
+                "2025级经济学培养方案", ecMajorId, grade2025);
+            Long ecPlanId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+
+            String[][] ecSem1 = {
+                {"大学英语(一)", "GED101", "4.0", "64", "1"},
+                {"高等数学(一)", "GED201", "5.0", "80", "1"},
+                {"微观经济学", "EC101", "3.0", "48", "1"},
+                {"思想道德修养与法律基础", "GED301", "3.0", "48", "1"},
+                {"体育(一)", "GED401", "1.0", "32", "1"}
+            };
+            for (int i = 0; i < ecSem1.length; i++) {
+                jdbcTemplate.update("INSERT INTO edu_training_plan_item (plan_id, semester_number, course_name, course_code, credit, hours, is_required, sort_order) VALUES (?,1,?,?,?,?,1,?)",
+                    ecPlanId, ecSem1[i][0], ecSem1[i][1], new java.math.BigDecimal(ecSem1[i][2]), Integer.parseInt(ecSem1[i][3]), i + 1);
+            }
+            String[][] ecSem2 = {
+                {"微观经济学", "EC101", "3.0", "48", "1"},
+                {"宏观经济学", "EC102", "3.0", "48", "1"},
+                {"计量经济学", "EC103", "4.0", "64", "1"},
+                {"国际经济学", "EC104", "3.0", "48", "1"},
+                {"财政学", "EC105", "3.0", "48", "1"},
+                {"大学英语(二)", "GED102", "4.0", "64", "1"},
+                {"线性代数", "GED202", "4.0", "64", "1"},
+                {"中国近现代史纲要", "GED302", "3.0", "48", "1"},
+                {"形势与政策", "GED403", "2.0", "16", "1"},
+                {"体育(二)", "GED402", "1.0", "32", "1"}
+            };
+            for (int i = 0; i < ecSem2.length; i++) {
+                jdbcTemplate.update("INSERT INTO edu_training_plan_item (plan_id, semester_number, course_name, course_code, credit, hours, is_required, sort_order) VALUES (?,2,?,?,?,?,1,?)",
+                    ecPlanId, ecSem2[i][0], ecSem2[i][1], new java.math.BigDecimal(ecSem2[i][2]), Integer.parseInt(ecSem2[i][3]), i + 1);
+            }
+
+            // 回填培养方案项的 generatedCourseId，关联到已存在的课程记录
+            try {
+                for (String code : new String[]{"CS101","CS102","CS103","CS104","CS105","EC101","EC102","EC103","EC104","EC105","GED102","GED202","GED302","GED403","GED402"}) {
+                    Long existingId = jdbcTemplate.queryForObject("SELECT id FROM edu_course WHERE course_code=? AND semester='202502'", Long.class, code);
+                    if (existingId != null) {
+                        jdbcTemplate.update("UPDATE edu_training_plan_item SET generated_course_id=?, status=1 WHERE course_code=? AND generated_course_id IS NULL", existingId, code);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 回填课程实际选课人数
+        try {
+            for (String code : new String[]{"CS101","CS102","CS103","CS104","CS105","EC101","EC102","EC103","EC104","EC105","GED102","GED202","GED302","GED403","GED402"}) {
+                jdbcTemplate.update("UPDATE edu_course SET enrolled=(SELECT COUNT(*) FROM edu_course_selection WHERE course_id=(SELECT id FROM edu_course WHERE course_code=?) AND status=1) WHERE course_code=?", code, code);
+            }
+        } catch (Exception ignored) {}
+
+        // === 社团种子数据 ===
+        try {
+            Long s001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 's001'", Long.class);
+            if (s001Id != null) {
+                jdbcTemplate.update("INSERT IGNORE INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "计算机协会", "编程、算法、人工智能兴趣社团", s001Id, 1, 1);
+                jdbcTemplate.update("INSERT IGNORE INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "羽毛球社", "羽毛球运动交流与训练", s001Id, 1, 1);
+                jdbcTemplate.update("INSERT IGNORE INTO club_info (name, description, president_id, member_count, status) VALUES (?,?,?,?,?)",
+                    "摄影社", "摄影技巧分享与外拍活动", s001Id, 1, 1);
+
+                Long club1Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '计算机协会'", Long.class);
+                Long club2Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '羽毛球社'", Long.class);
+                Long club3Id = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '摄影社'", Long.class);
+
+                if (club1Id != null)
+                    jdbcTemplate.update("INSERT IGNORE INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)", club1Id, s001Id, "president", 1);
+                if (club2Id != null)
+                    jdbcTemplate.update("INSERT IGNORE INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)", club2Id, s001Id, "president", 1);
+                if (club3Id != null)
+                    jdbcTemplate.update("INSERT IGNORE INTO club_member (club_id, user_id, role, status) VALUES (?,?,?,?)", club3Id, s001Id, "president", 1);
+            }
+        } catch (Exception ignored) {}
+
+        // === 场地种子数据 ===
+        try {
+            jdbcTemplate.update("INSERT IGNORE INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
+                "301 报告厅", "教学楼A座3楼", 200, "大型报告厅，配备投影音响");
+            jdbcTemplate.update("INSERT IGNORE INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
+                "篮球场", "东区体育场", 50, "标准室外篮球场");
+            jdbcTemplate.update("INSERT IGNORE INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
+                "B101 活动室", "教学楼B座1楼", 30, "小型多功能活动室");
+            jdbcTemplate.update("INSERT IGNORE INTO club_venue (name, location, capacity, description) VALUES (?,?,?,?)",
+                "阶梯教室", "教学楼C座2楼", 150, "可容纳150人的阶梯教室");
+        } catch (Exception ignored) {}
+
+        // === 活动中心种子数据 ===
+        try {
+            Long adminId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 'admin'", Long.class);
+            Long teacherId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 't001'", Long.class);
+            Long s001Id = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username = 's001'", Long.class);
+            if (adminId != null && teacherId != null && s001Id != null) {
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO activity_center (title, description, location, start_time, end_time, max_participants, category, creator_id, creator_role, status) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "校园编程马拉松", "24小时编程挑战赛，欢迎各路高手参加！组队或个人参赛均可。", "体育馆",
+                    java.sql.Timestamp.valueOf("2026-06-15 09:00:00"), java.sql.Timestamp.valueOf("2026-06-16 09:00:00"),
+                    50, "academic", s001Id, "club_president", 0);
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO activity_center (title, description, location, start_time, end_time, max_participants, current_participants, category, creator_id, creator_role, status, approver_id, approve_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "摄影作品展", "全校摄影爱好者作品展，欢迎参观投稿。", "图书馆一楼展厅",
+                    java.sql.Timestamp.valueOf("2026-06-20 10:00:00"), java.sql.Timestamp.valueOf("2026-06-22 17:00:00"),
+                    200, 0, "cultural", teacherId, "teacher", 1, adminId,
+                    java.sql.Timestamp.valueOf("2026-05-30 10:00:00"));
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO activity_center (title, description, location, start_time, end_time, category, creator_id, creator_role, status, approver_id, reject_reason, approve_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "校外聚餐活动", "组织同学到校外餐厅聚餐联谊。", "校外美食街",
+                    java.sql.Timestamp.valueOf("2026-07-01 18:00:00"), java.sql.Timestamp.valueOf("2026-07-01 21:00:00"),
+                    "other", s001Id, "club_president", 2, adminId, "活动内容不符合校园安全管理规定",
+                    java.sql.Timestamp.valueOf("2026-05-29 14:00:00"));
+                jdbcTemplate.update(
+                    "INSERT IGNORE INTO activity_center (title, description, location, start_time, end_time, max_participants, current_participants, category, creator_id, creator_role, status, approver_id, approve_time, confirm_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "羽毛球友谊赛", "社团羽毛球友谊赛，欢迎同学们报名参加。", "东区体育馆",
+                    java.sql.Timestamp.valueOf("2026-05-10 14:00:00"), java.sql.Timestamp.valueOf("2026-05-10 18:00:00"),
+                    30, 28, "sports", adminId, "admin", 3, adminId,
+                    java.sql.Timestamp.valueOf("2026-05-05 10:00:00"),
+                    java.sql.Timestamp.valueOf("2026-05-10 19:00:00"));
+
+                Long confirmedActId = jdbcTemplate.queryForObject(
+                    "SELECT id FROM activity_center WHERE title = '羽毛球友谊赛'", Long.class);
+                if (confirmedActId != null) {
+                    jdbcTemplate.update("INSERT IGNORE INTO activity_registration (activity_id, user_id) VALUES (?,?)",
+                        confirmedActId, s001Id);
+                }
+
+                Long clubId = jdbcTemplate.queryForObject("SELECT id FROM club_info WHERE name = '计算机协会'", Long.class);
+                if (clubId != null) {
+                    jdbcTemplate.update(
+                        "INSERT IGNORE INTO activity_center (title, description, location, start_time, end_time, max_participants, category, club_id, creator_id, creator_role, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        "编程技术分享会", "计算机协会内部技术分享，主题：Spring Boot 实战经验", "理学院303教室",
+                        java.sql.Timestamp.valueOf("2026-06-25 14:00:00"), java.sql.Timestamp.valueOf("2026-06-25 17:00:00"),
+                        30, "academic", clubId, s001Id, "club_president", 0);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 }

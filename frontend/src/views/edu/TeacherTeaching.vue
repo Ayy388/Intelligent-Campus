@@ -104,9 +104,7 @@
         <el-table :data="displayedStudents" border stripe>
           <el-table-column type="index" label="序号" width="55" />
           <el-table-column prop="studentName" label="学生姓名" width="110" />
-          <el-table-column label="学号" width="100">
-            <template #default="{row}">{{ row.studentId }}</template>
-          </el-table-column>
+          <el-table-column prop="studentUsername" label="学号" width="100" />
           <el-table-column prop="studentClassName" label="班级" width="120" />
           <el-table-column prop="studentDepartment" label="院系" width="120" />
           <el-table-column prop="studentPhone" label="联系方式" width="130" />

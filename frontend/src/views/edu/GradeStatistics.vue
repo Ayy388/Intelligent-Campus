@@ -63,7 +63,7 @@
               <div v-if="!gradesMap[row.id]" class="text-center text-mist text-sm py-4">加载中...</div>
               <div v-else-if="gradesMap[row.id]!.length === 0" class="text-center text-mist text-sm py-4">该课程暂无成绩数据</div>
               <el-table v-else :data="gradesMap[row.id]!" size="small" max-height="360" stripe>
-                <el-table-column prop="studentId" label="学号" width="140" />
+                <el-table-column prop="studentUsername" label="学号" width="140" />
                 <el-table-column prop="studentName" label="姓名" width="140" />
                 <el-table-column label="分数" width="120">
                   <template #default="{ row: s }">

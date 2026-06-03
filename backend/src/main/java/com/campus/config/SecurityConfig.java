@@ -31,6 +31,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/sys/departments/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/majors/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/grades/all").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/sys/classes/all").authenticated()
                 .requestMatchers("/api/sys/**").hasRole("admin")
 
                 // 选课（学生可访问）
@@ -60,6 +61,12 @@ public class SecurityConfig {
                 // 成绩: 查看→所有人, 录入→teacher/admin
                 .requestMatchers(HttpMethod.GET, "/api/edu/grades", "/api/edu/grades/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/edu/grades").hasAnyRole("admin", "teacher")
+
+                // 培养方案: 增删改→admin, 查看→所有人
+                .requestMatchers(HttpMethod.POST, "/api/edu/training-plans/**").hasRole("admin")
+                .requestMatchers(HttpMethod.PUT, "/api/edu/training-plans/**").hasRole("admin")
+                .requestMatchers(HttpMethod.DELETE, "/api/edu/training-plans/**").hasRole("admin")
+                .requestMatchers(HttpMethod.GET, "/api/edu/training-plans/**").authenticated()
 
                 // 通知+指南: 查看→所有人, 增删改→teacher/admin
                 .requestMatchers(HttpMethod.GET, "/api/admin/notifications", "/api/admin/notifications/**").authenticated()

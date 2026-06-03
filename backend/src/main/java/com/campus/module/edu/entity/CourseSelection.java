@@ -26,4 +26,6 @@ public class CourseSelection {
     private String studentDepartment;
     @TableField(exist = false)
     private String studentPhone;
+    @TableField(exist = false)
+    private String studentUsername;
 }

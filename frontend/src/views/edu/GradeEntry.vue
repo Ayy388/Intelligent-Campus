@@ -26,9 +26,7 @@
         </div>
         <el-table :data="students" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
-          <el-table-column label="学号" width="100">
-            <template #default="{row}">{{ row.studentId }}</template>
-          </el-table-column>
+          <el-table-column prop="studentUsername" label="学号" width="100" />
           <el-table-column label="课程" width="160">
             <template #default="{row}">{{ row.courseName || '未获取' }}</template>
           </el-table-column>
