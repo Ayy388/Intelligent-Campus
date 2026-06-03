@@ -428,9 +428,9 @@ async function fetchStats() {
     } else if (role === 'teacher' || role === 'counselor') {
       const coursesRes = await getTeacherCourses()
       const courseCount = coursesRes.data?.length || 0
-      // deduplicate classes and students from teacher's courses
+      const coursesData = coursesRes.data || []
       const classIds = new Set()
-      for (const c of teacherCourses) {
+      for (const c of coursesData) {
         try {
           const ccRes = await getCourseClasses(c.id)
           ;(ccRes.data || []).forEach((cc) => { if (cc.classId) classIds.add(cc.classId) })
@@ -439,7 +439,7 @@ async function fetchStats() {
       const classCount = classIds.size
 
       const studentIds = new Set()
-      for (const c of teacherCourses) {
+      for (const c of coursesData) {
         try {
           const stuRes = await getCourseStudents(c.id)
           ;(stuRes.data || []).forEach((s) => { if (s.studentId) studentIds.add(s.studentId) })
@@ -503,13 +503,19 @@ async function fetchTodaySchedule() {
     const dayOfWeek = now.getDay() || 7 // Monday=1, Sunday=7
     const res = await getSchedule()
     const all = res.data || []
-    // Filter by today's day-of-week using schedule JSON
+    // Filter by today's day-of-week using schedule JSON, enrich with timeSlot/weeks
     todayCourses.value = all.filter((c: any) => {
       if (!c.schedule) return false
       try {
         const sched = typeof c.schedule === 'string' ? JSON.parse(c.schedule) : c.schedule
         const items = Array.isArray(sched) ? sched : [sched]
-        return items.some((s: any) => s.day === dayOfWeek)
+        const match = items.find((s: any) => s.day === dayOfWeek)
+        if (match) {
+          c.timeSlot = match.timeSlot
+          c.weeks = match.weeks || 'all'
+          return true
+        }
+        return false
       } catch { return false }
     })
   } catch {}
