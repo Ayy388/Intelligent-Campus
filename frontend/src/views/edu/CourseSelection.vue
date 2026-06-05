@@ -72,7 +72,7 @@
             type="primary"
             size="small"
             class="!rounded-xl !flex-1"
-            :disabled="course.enrolled >= course.capacity || course.status !== 1"
+            :disabled="(course.capacity && course.enrolled >= course.capacity) || course.status !== 1"
             @click="doEnroll(course)"
           >
             立即报名
@@ -128,9 +128,7 @@ async function doEnroll(course: Course) {
     await enrollCourse(course.id)
     ElMessage.success('报名成功')
     fetchData()
-  } catch (e: any) {
-    ElMessage.error(e.message || '报名失败')
-  }
+  } catch {}
 }
 
 onMounted(fetchData)

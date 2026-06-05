@@ -78,32 +78,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     @Override
     @Transactional
     @CacheEvict(value = "courses", allEntries = true)
-    public CourseSelection selectCourse(Long studentId, Long courseId, String semester) {
-        Course course = courseMapper.selectById(courseId);
-        if (course == null) throw new BusinessException("课程不存在");
-        if (course.getStatus() != 1) throw new BusinessException("该课程不开放选课");
-        int updated = courseMapper.updateEnrolled(courseId);
-        if (updated == 0) throw new BusinessException("已满员");
-        CourseSelection exist = selMapper.selectOne(new LambdaQueryWrapper<CourseSelection>()
-                .eq(CourseSelection::getStudentId, studentId)
-                .eq(CourseSelection::getCourseId, courseId)
-                .eq(CourseSelection::getSemester, semester));
-        if (exist != null) {
-            if (exist.getStatus() == 1) throw new BusinessException("已选该课程");
-            exist.setStatus(1);
-            selMapper.updateById(exist);
-            return exist;
-        }
-        CourseSelection sel = new CourseSelection();
-        sel.setStudentId(studentId); sel.setCourseId(courseId);
-        sel.setSemester(semester); sel.setStatus(1);
-        selMapper.insert(sel);
-        return sel;
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = "courses", allEntries = true)
     public void dropCourse(Long selId, Long studentId) {
         CourseSelection sel = selMapper.selectById(selId);
         if (sel == null || !sel.getStudentId().equals(studentId))
@@ -334,8 +308,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
                 .eq(CourseSelection::getStatus, 1));
         if (cnt > 0) throw new BusinessException("已选该课程");
 
-        if (course.getEnrolled() != null && course.getCapacity() != null
-            && course.getEnrolled() >= course.getCapacity())
+        if (course.getCapacity() != null && course.getCapacity() > 0
+            && course.getEnrolled() != null && course.getEnrolled() >= course.getCapacity())
             throw new BusinessException("该课程已满员");
 
         CourseSelection cs = new CourseSelection();

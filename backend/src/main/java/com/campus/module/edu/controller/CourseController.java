@@ -88,14 +88,6 @@ public class CourseController {
         return Result.ok(courseService.getMySelections(Long.parseLong(claims.getSubject())));
     }
 
-    @Operation(summary = "选课")
-    @PostMapping("/selections")
-    public Result<CourseSelection> select(Authentication auth,
-            @RequestParam Long courseId, @RequestParam String semester) {
-        Claims claims = (Claims) auth.getDetails();
-        return Result.ok(courseService.selectCourse(Long.parseLong(claims.getSubject()), courseId, semester));
-    }
-
     @Operation(summary = "退选课程")
     @DeleteMapping("/selections/{id}")
     public Result<Void> drop(Authentication auth, @PathVariable Long id) {

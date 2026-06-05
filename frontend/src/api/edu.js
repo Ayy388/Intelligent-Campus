@@ -20,9 +20,6 @@ export function confirmCourse(id) {
 export function getSelections() {
     return request.get('/edu/selections');
 }
-export function selectCourse(courseId, semester) {
-    return request.post('/edu/selections', null, { params: { courseId, semester } });
-}
 export function dropCourse(selectionId) {
     return request.delete(`/edu/selections/${selectionId}`);
 }

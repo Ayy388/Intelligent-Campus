@@ -9,7 +9,6 @@ import java.util.List;
 
 public interface CourseService extends IService<Course> {
     Page<Course> pageWithTeacher(int page, int size, String keyword, String semester);
-    CourseSelection selectCourse(Long studentId, Long courseId, String semester);
     void dropCourse(Long selectionId, Long studentId);
     List<CourseSelection> getMySelections(Long studentId);
     List<CourseSelection> getCourseStudents(Long courseId);

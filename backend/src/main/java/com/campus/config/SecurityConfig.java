@@ -58,7 +58,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/edu/courses/**").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.GET, "/api/edu/selections").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/edu/selections/course/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/edu/selections").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/edu/selections/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/edu/courses/teacher").authenticated()
                 // 学期: 查看→所有人, 增删改→admin

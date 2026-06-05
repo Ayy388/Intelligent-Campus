@@ -130,7 +130,6 @@ async function handleLogin() {
     await userStore.login(form.username, form.password)
     router.push('/dashboard')
   } catch {
-    ElMessage.error('用户名或密码错误')
   } finally {
     loading.value = false
   }

@@ -41,6 +41,10 @@ public class DataInitializer implements CommandLineRunner {
                 department VARCHAR(100),
                 class_name VARCHAR(100),
                 status TINYINT DEFAULT 1,
+                class_id BIGINT,
+                department_id BIGINT,
+                major_id BIGINT,
+                counselor_id BIGINT,
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (role_id) REFERENCES sys_role(id)
@@ -64,6 +68,9 @@ public class DataInitializer implements CommandLineRunner {
                 enrolled INT DEFAULT 0,
                 description TEXT,
                 status TINYINT DEFAULT 0,
+                course_type VARCHAR(20) DEFAULT 'required',
+                min_students INT DEFAULT 1,
+                enroll_end DATETIME,
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
             )
@@ -92,6 +99,7 @@ public class DataInitializer implements CommandLineRunner {
                 semester VARCHAR(20) NOT NULL,
                 select_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status TINYINT DEFAULT 1,
+                select_type VARCHAR(20) DEFAULT 'manual',
                 UNIQUE (student_id, course_id, semester),
                 FOREIGN KEY (student_id) REFERENCES sys_user(id),
                 FOREIGN KEY (course_id) REFERENCES edu_course(id)
@@ -116,9 +124,6 @@ public class DataInitializer implements CommandLineRunner {
                 UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)
             )
         """);
-
-        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD COLUMN grade_level VARCHAR(10)"); } catch (Exception ignored) {}
-        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)"); } catch (Exception ignored) {}
 
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS admin_notification (
@@ -377,35 +382,6 @@ public class DataInitializer implements CommandLineRunner {
             jdbcTemplate.update("INSERT INTO sys_role (role_code, role_name) VALUES ('counselor','辅导员')");
         } catch (Exception ignored) {}
 
-        // 数据库迁移：为已有表添加新列（如果不存在）
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN start_week INT DEFAULT 1");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN end_week INT DEFAULT 20");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN course_type VARCHAR(20) DEFAULT 'required'");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN min_students INT DEFAULT 1");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN enroll_end DATETIME");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE edu_course_selection ADD COLUMN select_type VARCHAR(20) DEFAULT 'manual'");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN class_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN counselor_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN major_id BIGINT");
-        } catch (Exception ignored) {}
-
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS sys_class (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -414,6 +390,10 @@ public class DataInitializer implements CommandLineRunner {
                 major VARCHAR(100),
                 grade VARCHAR(20),
                 advisor VARCHAR(50),
+                department_id BIGINT,
+                major_id BIGINT,
+                grade_id BIGINT,
+                counselor_id BIGINT,
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """);
@@ -502,23 +482,6 @@ public class DataInitializer implements CommandLineRunner {
             )
         """);
 
-        // 添加外键字段
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_user ADD COLUMN department_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN department_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN major_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN grade_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE sys_class ADD COLUMN counselor_id BIGINT");
-        } catch (Exception ignored) {}
-
         // 迁移院系数据
         try {
             Integer cnt = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sys_department", Integer.class);
@@ -606,22 +569,6 @@ public class DataInitializer implements CommandLineRunner {
             )
         """);
 
-        // 兼容旧表：补充可能缺失的字段（旧版表缺少部分列）
-        String[][] missingColumns = {
-            {"club_id", "BIGINT", "category"},
-            {"summary", "TEXT", "club_id"},
-            {"images", "VARCHAR(500)", "summary"},
-            {"activity_type", "VARCHAR(50)", "images"},
-            {"confirm_time", "TIMESTAMP", "approve_time"},
-        };
-        for (String[] col : missingColumns) {
-            try {
-                jdbcTemplate.update("ALTER TABLE activity_center ADD COLUMN " + col[0] + " " + col[1] + " AFTER " + col[2]);
-            } catch (Exception ignored) {
-                // 列已存在则忽略
-            }
-        }
-
         // 填充完整测试数据
         try {
             seedComprehensiveData(passwordEncoder.encode("123456"));
@@ -646,7 +593,7 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM edu_grade");
         jdbcTemplate.update("DELETE FROM edu_course_selection");
         jdbcTemplate.update("DELETE FROM edu_course_class");
-        jdbcTemplate.update("DELETE FROM edu_course WHERE course_code IN ('CS401','CS402','EC201','EC202','EE301','EE302','FL101','CS101','CS102','CS103','CS104','CS105','CS201','ENG101','MATH201','CS301','EC101','EC102','EC103','EC104','EC105','GED102','GED202','GED302','GED403','GED402')");
+        jdbcTemplate.update("DELETE FROM edu_course WHERE course_code IN ('CS401','CS402','EC201','EC202','EE301','EE302','FL101','CS101','CS102','CS103','CS104','CS105','CS201','ENG101','MATH201','CS301','EC101','EC102','EC103','EC104','EC105','GED102','GED202','GED302','GED403','GED402','ELEC001','ELEC002','ELEC003')");
         // 清理引用 sys_user 的外键表（按 FK 链顺序，必须在 sys_user DELETE 之前）
         jdbcTemplate.update("DELETE FROM user_todo");
         jdbcTemplate.update("DELETE FROM life_lost_found");
@@ -675,9 +622,6 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM edu_training_plan_item");
         jdbcTemplate.update("DELETE FROM edu_training_plan");
         jdbcTemplate.update("DELETE FROM edu_semester");
-
-        try { jdbcTemplate.execute("ALTER TABLE sys_department ADD CONSTRAINT uk_department_name UNIQUE (name)"); } catch (Exception ignored) {}
-        try { jdbcTemplate.execute("ALTER TABLE sys_major ADD CONSTRAINT uk_major_name UNIQUE (name, department_id)"); } catch (Exception ignored) {}
 
         // === 学期 ===
         jdbcTemplate.update("INSERT IGNORE INTO edu_semester (xn, xqjc, xqqc, ksrq, jsrq, zc, status) VALUES (?,?,?,?,?,?,?)",
@@ -812,7 +756,7 @@ public class DataInitializer implements CommandLineRunner {
 
         // === 9. 课程（每个专业5门必修课，共10门，教师已分配） ===
         long courseCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM edu_course", Long.class);
-        if (courseCount < 20) {
+        if (courseCount < 23) {
             // 计算机科学与技术学院 — 5门专业课（每位老师一门课，每周2时段）
             jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,140,0,2,'required')",
                 "CS101", "程序设计基础", t001Id, 4.0, 64, "202502", "教3-201", "[{\"day\":1,\"timeSlot\":1,\"weeks\":\"all\"},{\"day\":3,\"timeSlot\":2,\"weeks\":\"all\"}]", 16);
@@ -871,6 +815,14 @@ public class DataInitializer implements CommandLineRunner {
                     jdbcTemplate.update("INSERT IGNORE INTO edu_course_class (course_id, class_id, is_required) VALUES (?,?,1)", cid, clsId);
                 }
             }
+
+            // 9c. 选修课（3门，无班级限制，开放选课）
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,50,0,1,'elective')",
+                "ELEC001", "Python程序设计", t011Id, 3.0, 48, "202502", "教3-501", "[{\"day\":4,\"timeSlot\":1,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,50,0,1,'elective')",
+                "ELEC002", "Web前端开发", t012Id, 3.0, 48, "202502", "教3-502", "[{\"day\":2,\"timeSlot\":2,\"weeks\":\"all\"}]", 16);
+            jdbcTemplate.update("INSERT IGNORE INTO edu_course (course_code, course_name, teacher_id, credit, hours, semester, classroom, schedule, start_week, end_week, capacity, enrolled, status, course_type) VALUES (?,?,?,?,?,?,?,?,1,?,50,0,1,'elective')",
+                "ELEC003", "人工智能导论", t015Id, 3.0, 48, "202502", "教3-503", "[{\"day\":5,\"timeSlot\":4,\"weeks\":\"all\"}]", 16);
         }
 
         // === 10. 选课数据（所有学生自动分配到本专业5门必修课） ===
@@ -927,7 +879,6 @@ public class DataInitializer implements CommandLineRunner {
                     csPlanId, csSem1[i][0], csSem1[i][1], new java.math.BigDecimal(csSem1[i][2]), Integer.parseInt(csSem1[i][3]), i + 1);
             }
             String[][] csSem2 = {
-                {"程序设计基础", "CS101", "4.0", "64", "1"},
                 {"数据结构与算法", "CS102", "4.0", "64", "1"},
                 {"计算机网络", "CS103", "3.0", "48", "1"},
                 {"操作系统", "CS104", "4.0", "64", "1"},
@@ -960,7 +911,6 @@ public class DataInitializer implements CommandLineRunner {
                     ecPlanId, ecSem1[i][0], ecSem1[i][1], new java.math.BigDecimal(ecSem1[i][2]), Integer.parseInt(ecSem1[i][3]), i + 1);
             }
             String[][] ecSem2 = {
-                {"微观经济学", "EC101", "3.0", "48", "1"},
                 {"宏观经济学", "EC102", "3.0", "48", "1"},
                 {"计量经济学", "EC103", "4.0", "64", "1"},
                 {"国际经济学", "EC104", "3.0", "48", "1"},
@@ -987,11 +937,9 @@ public class DataInitializer implements CommandLineRunner {
             } catch (Exception ignored) {}
         }
 
-        // 回填课程实际选课人数
+        // 回填课程实际选课人数（全表自动覆盖所有课程）
         try {
-            for (String code : new String[]{"CS101","CS102","CS103","CS104","CS105","EC101","EC102","EC103","EC104","EC105","GED102","GED202","GED302","GED403","GED402"}) {
-                jdbcTemplate.update("UPDATE edu_course SET enrolled=(SELECT COUNT(*) FROM edu_course_selection WHERE course_id=(SELECT id FROM edu_course WHERE course_code=?) AND status=1) WHERE course_code=?", code, code);
-            }
+            jdbcTemplate.update("UPDATE edu_course e SET e.enrolled = (SELECT COUNT(*) FROM edu_course_selection s WHERE s.course_id = e.id AND s.status = 1)");
         } catch (Exception ignored) {}
 
         // === 社团种子数据 ===

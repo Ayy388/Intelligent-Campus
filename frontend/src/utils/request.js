@@ -14,7 +14,6 @@ request.interceptors.request.use(config => {
 request.interceptors.response.use(response => {
     const res = response.data;
     if (res.code !== 200) {
-        ElMessage.error(res.message || '请求失败');
         if (res.code === 401) {
             localStorage.removeItem('token');
             router.push('/login');

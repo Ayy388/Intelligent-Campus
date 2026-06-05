@@ -33,8 +33,23 @@
         </template>
       </el-table-column>
       <el-table-column label="状态" width="80"><template #default="{row}"><el-tag :type="row.status===1?'success':row.status===2?'info':'warning'">{{ row.status===1?'选课中':row.status===2?'已确认':'未发布' }}</el-tag></template></el-table-column>
-      <el-table-column label="操作" width="280">
-        <template #default="{row}"><el-button size="small" @click="showDialog(row)">编辑</el-button><el-button size="small" type="danger" @click="del(row.id)">删除</el-button><el-button v-if="row.courseType==='required' && row.status===0" size="small" type="primary" @click="openAssignDialog(row.id)">下达教学任务</el-button><el-button v-if="row.courseType==='elective' && row.status===1" size="small" type="success" @click="handleConfirm(row.id)">确认开课</el-button><el-button v-if="row.courseType==='elective' && row.status===1" size="small" type="danger" @click="handleCancel(row.id)">取消开课</el-button></template>
+      <el-table-column label="操作" width="220">
+        <template #default="{row}">
+          <el-button size="small" @click="showDialog(row)">编辑</el-button>
+          <el-dropdown trigger="click" @command="(cmd:string) => handleAction(cmd, row)" style="margin-left:6px">
+            <el-button size="small">
+              更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                <el-dropdown-item v-if="row.courseType==='required' && row.status===0" command="assign">下达教学任务</el-dropdown-item>
+                <el-dropdown-item v-if="row.courseType==='elective' && row.status===1" command="confirm">确认开课</el-dropdown-item>
+                <el-dropdown-item v-if="row.courseType==='elective' && row.status===1" command="cancel">取消开课</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </template>
       </el-table-column>
     </el-table>
     <el-dialog v-model="dialogVisible" :title="editId?'编辑':'添加'" width="600px">
@@ -302,6 +317,27 @@ async function doAssign() {
   ElMessage.success('教学任务已下达')
   assignDialogVisible.value = false
   fetch()
+}
+
+async function handleAction(cmd: string, row: Course) {
+  if (cmd === 'delete') {
+    try {
+      await ElMessageBox.confirm('确认删除该课程？', '提示', { type: 'warning' })
+      await deleteCourse(row.id)
+      ElMessage.success('删除成功')
+      fetch()
+    } catch { /* cancelled */ }
+  } else if (cmd === 'assign') {
+    openAssignDialog(row.id)
+  } else if (cmd === 'confirm') {
+    await confirmOpening(row.id)
+    ElMessage.success('课程已确认开课')
+    fetch()
+  } else if (cmd === 'cancel') {
+    await cancelOpening(row.id)
+    ElMessage.success('课程已取消')
+    fetch()
+  }
 }
 
 async function handleConfirm(courseId: number) {

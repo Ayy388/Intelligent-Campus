@@ -12,7 +12,6 @@ vi.mock('@/utils/request', () => ({
 }))
 
 import {
-  selectCourse,
   dropCourse,
   getMyGrades,
   getAvailableCourses,
@@ -20,14 +19,6 @@ import {
 } from '@/api/edu'
 
 describe('edu API', () => {
-  it('selectCourse should call POST with correct params', async () => {
-    mockRequest.post.mockResolvedValue({ data: null })
-    await selectCourse(1, '2025-2026-2')
-    expect(mockRequest.post).toHaveBeenCalledWith('/edu/selections', null, {
-      params: { courseId: 1, semester: '2025-2026-2' }
-    })
-  })
-
   it('dropCourse should call DELETE with selection id', async () => {
     mockRequest.delete.mockResolvedValue({ data: null })
     await dropCourse(42)
