@@ -147,12 +147,12 @@
         <div>
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-semibold text-gray-900">成员列表</h4>
-            <span class="text-xs text-gray-400">{{ members.length }} 人</span>
+            <span class="text-xs text-gray-400">{{ displayMembers.length }} 人</span>
           </div>
-          <div v-if="members.length===0" class="text-center text-gray-400 py-8 text-sm bg-gray-50 rounded-xl">
+          <div v-if="displayMembers.length===0" class="text-center text-gray-400 py-8 text-sm bg-gray-50 rounded-xl">
             暂无成员
           </div>
-          <div v-for="m in members" :key="m.id" class="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+          <div v-for="m in displayMembers" :key="m.id" class="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                 :style="{ background: memberColors[(m.id || 0) % memberColors.length] }">
@@ -163,10 +163,6 @@
                 <span v-if="m.role==='president'" class="ml-1.5 text-xs bg-red-50 text-red-500 px-1.5 py-0.5 rounded-md">社长</span>
                 <span v-else-if="m.role==='vice_president'" class="ml-1.5 text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md">副社长</span>
               </div>
-            </div>
-            <div v-if="(userStore.role==='admin'||userStore.role==='teacher') && m.status===0" class="flex gap-2">
-              <button @click="doApproveMember(m.id,1)" class="px-3 py-1.5 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors">通过</button>
-              <button @click="doApproveMember(m.id,2)" class="px-3 py-1.5 text-xs border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors">拒绝</button>
             </div>
           </div>
         </div>
@@ -214,7 +210,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getClubs, getMyMemberships, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers, approveClub, approveDisband } from '@/api/club'
 import { useUserStore } from '@/store/user'
@@ -237,6 +233,8 @@ const detailVisible = ref(false)
 const detailClub = ref<any>(null)
 const members = ref<any[]>([])
 const myMemberInfo = ref<any>(null)
+
+const displayMembers = computed(() => members.value.filter((m: any) => m.status === 1))
 
 const createVisible = ref(false)
 const createForm = reactive({ name: '', description: '' })

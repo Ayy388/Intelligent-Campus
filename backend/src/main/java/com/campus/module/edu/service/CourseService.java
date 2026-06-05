@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.campus.module.edu.entity.Course;
 import com.campus.module.edu.entity.CourseClass;
 import com.campus.module.edu.entity.CourseSelection;
-import com.campus.module.edu.entity.Grade;
 import java.util.List;
 
 public interface CourseService extends IService<Course> {
@@ -14,9 +13,6 @@ public interface CourseService extends IService<Course> {
     void dropCourse(Long selectionId, Long studentId);
     List<CourseSelection> getMySelections(Long studentId);
     List<CourseSelection> getCourseStudents(Long courseId);
-    void inputGrade(Grade grade);
-    List<Grade> getStudentGrades(Long studentId);
-    List<Grade> getCourseGrades(Long courseId);
     List<Course> getTeacherCourses(Long teacherId);
     void confirmCourse(Long courseId, Long teacherId);
     void deleteCourse(Long courseId);
@@ -28,4 +24,12 @@ public interface CourseService extends IService<Course> {
     void cancelCourse(Long courseId);
     List<CourseClass> getCourseClasses(Long courseId);
     void setCourseClasses(Long courseId, List<CourseClass> classes);
+
+    // Schedule management
+    void addSchedule(Long courseId, ScheduleConflictDetector.ScheduleItem item);
+    void removeSchedule(Long courseId, int scheduleIndex);
+    void updateSchedule(Long courseId, int scheduleIndex, ScheduleConflictDetector.ScheduleItem item);
+    List<Course> getScheduleByClass(Long classId);
+    List<Course> getScheduleByTeacher(Long teacherId);
+    List<Course> getScheduleByRoom(String classroom);
 }

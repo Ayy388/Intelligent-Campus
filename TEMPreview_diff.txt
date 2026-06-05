@@ -1,0 +1,1977 @@
+diff --git a/backend/pom.xml b/backend/pom.xml
+index 39c7b26..c79c7e7 100644
+--- a/backend/pom.xml
++++ b/backend/pom.xml
+@@ -66,6 +66,7 @@
+         <dependency>
+             <groupId>org.projectlombok</groupId>
+             <artifactId>lombok</artifactId>
++            <version>1.18.34</version>
+             <optional>true</optional>
+         </dependency>
+         <dependency>
+@@ -84,6 +85,8 @@
+                         <exclude>
+                             <groupId>org.projectlombok</groupId>
+                             <artifactId>lombok</artifactId>
++                            <version>1.18.34</version>
++
+                         </exclude>
+                     </excludes>
+                 </configuration>
+diff --git a/backend/src/main/java/com/campus/config/DataInitializer.java b/backend/src/main/java/com/campus/config/DataInitializer.java
+index 9b9ed36..78778a4 100644
+--- a/backend/src/main/java/com/campus/config/DataInitializer.java
++++ b/backend/src/main/java/com/campus/config/DataInitializer.java
+@@ -106,16 +106,19 @@ public class DataInitializer implements CommandLineRunner {
+                 teacher_id BIGINT NOT NULL,
+                 score DECIMAL(5,2),
+                 grade_type VARCHAR(20) DEFAULT '百分制',
++                grade_level VARCHAR(10),
+                 semester VARCHAR(20) NOT NULL,
+                 remark VARCHAR(255),
+                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                 FOREIGN KEY (student_id) REFERENCES sys_user(id),
+                 FOREIGN KEY (course_id) REFERENCES edu_course(id),
+-                FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
++                FOREIGN KEY (teacher_id) REFERENCES sys_user(id),
++                UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)
+             )
+         """);
+ 
+         try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD COLUMN grade_level VARCHAR(10)"); } catch (Exception ignored) {}
++        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)"); } catch (Exception ignored) {}
+ 
+         jdbcTemplate.execute("""
+             CREATE TABLE IF NOT EXISTS admin_notification (
+diff --git a/backend/src/main/java/com/campus/config/SecurityConfig.java b/backend/src/main/java/com/campus/config/SecurityConfig.java
+index fdcc806..269f6b9 100644
+--- a/backend/src/main/java/com/campus/config/SecurityConfig.java
++++ b/backend/src/main/java/com/campus/config/SecurityConfig.java
+@@ -61,6 +61,8 @@ public class SecurityConfig {
+                 // 成绩: 查看→所有人, 录入→teacher/admin
+                 .requestMatchers(HttpMethod.GET, "/api/edu/grades", "/api/edu/grades/**").authenticated()
+                 .requestMatchers(HttpMethod.POST, "/api/edu/grades").hasAnyRole("admin", "teacher")
++                .requestMatchers(HttpMethod.PUT, "/api/edu/grades/**").hasAnyRole("admin", "teacher")
++                .requestMatchers(HttpMethod.DELETE, "/api/edu/grades/**").hasRole("admin")
+ 
+                 // 培养方案: 增删改→admin, 查看→所有人
+                 .requestMatchers(HttpMethod.POST, "/api/edu/training-plans/**").hasRole("admin")
+diff --git a/backend/src/main/java/com/campus/module/activity/service/impl/ActivityCenterServiceImpl.java b/backend/src/main/java/com/campus/module/activity/service/impl/ActivityCenterServiceImpl.java
+index 9d61ea3..be3ac0f 100644
+--- a/backend/src/main/java/com/campus/module/activity/service/impl/ActivityCenterServiceImpl.java
++++ b/backend/src/main/java/com/campus/module/activity/service/impl/ActivityCenterServiceImpl.java
+@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
+ @RequiredArgsConstructor
+ public class ActivityCenterServiceImpl implements ActivityCenterService {
+ 
++    private static final Long ADMIN_ROLE_ID = 3L;
++
+     private final ActivityCenterMapper activityMapper;
+     private final ActivityRegistrationMapper registrationMapper;
+     private final SysUserMapper userMapper;
+@@ -132,6 +134,33 @@ public class ActivityCenterServiceImpl implements ActivityCenterService {
+         ActivityCenter a = activityMapper.selectById(id);
+         if (a == null) throw new BusinessException("活动不存在");
+         if (a.getStatus() != 0) throw new BusinessException("该活动已被处理，无法重复审核");
++
++        // 权限校验
++        SysUser approver = userMapper.selectById(approverId);
++        if (approver == null) throw new BusinessException("用户不存在");
++
++        boolean isAdmin = ADMIN_ROLE_ID.equals(approver.getRoleId());
++        boolean isPresident = false;
++
++        if (a.getClubId() != null) {
++            // 社团活动：社长可审批
++            Long presidentCount = clubMemberMapper.selectCount(
++                    new LambdaQueryWrapper<ClubMember>()
++                            .eq(ClubMember::getClubId, a.getClubId())
++                            .eq(ClubMember::getUserId, approverId)
++                            .eq(ClubMember::getRole, "president")
++                            .eq(ClubMember::getStatus, 1));
++            isPresident = presidentCount > 0;
++        }
++
++        if (!isAdmin && !isPresident) {
++            if (a.getClubId() != null) {
++                throw new BusinessException("只有管理员或社团社长才能审核该活动");
++            } else {
++                throw new BusinessException("只有管理员才能审核全校活动");
++            }
++        }
++
+         a.setStatus(status);
+         a.setApproverId(approverId);
+         a.setRejectReason(rejectReason);
+diff --git a/backend/src/main/java/com/campus/module/club/controller/ClubController.java b/backend/src/main/java/com/campus/module/club/controller/ClubController.java
+index d8fc05c..b0b29fe 100644
+--- a/backend/src/main/java/com/campus/module/club/controller/ClubController.java
++++ b/backend/src/main/java/com/campus/module/club/controller/ClubController.java
+@@ -7,6 +7,7 @@ import com.campus.module.club.entity.*;
+ import com.campus.module.club.service.ClubService;
+ import io.jsonwebtoken.Claims;
+ import lombok.RequiredArgsConstructor;
++import org.springframework.security.access.prepost.PreAuthorize;
+ import org.springframework.security.core.Authentication;
+ import org.springframework.web.bind.annotation.*;
+ 
+@@ -23,12 +24,15 @@ public class ClubController {
+     }
+ 
+     @GetMapping("/list")
++    @PreAuthorize("permitAll()")
+     public Result<List<Club>> list() { return Result.ok(clubService.getClubs()); }
+ 
+     @GetMapping("/{id}")
++    @PreAuthorize("permitAll()")
+     public Result<Club> detail(@PathVariable Long id) { return Result.ok(clubService.getClubById(id)); }
+ 
+     @PostMapping
++    @PreAuthorize("hasRole('student')")
+     public Result<Void> create(@RequestBody Club c, Authentication auth) { 
+         c.setPresidentId(getUserId(auth));
+         clubService.saveClub(c); 
+@@ -36,12 +40,14 @@ public class ClubController {
+     }
+     
+     @PutMapping("/{id}/approve")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> approve(@PathVariable Long id, @RequestParam Integer status) {
+         clubService.approveClub(id, status);
+         return Result.ok();
+     }
+ 
+     @DeleteMapping("/member/{clubId}")
++    @PreAuthorize("isAuthenticated()")
+     public Result<Void> leaveClub(@PathVariable Long clubId, Authentication auth) {
+         Long userId = getUserId(auth);
+         clubService.leaveClub(clubId, userId);
+@@ -49,76 +55,82 @@ public class ClubController {
+     }
+ 
+     @PostMapping("/{id}/disband")
++    @PreAuthorize("isAuthenticated()")
+     public Result<Void> disband(@PathVariable Long id, Authentication auth) {
+         clubService.disbandClub(id, getUserId(auth));
+         return Result.ok();
+     }
+ 
+     @PostMapping("/{id}/approve-disband")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> approveDisband(@PathVariable Long id, @RequestParam Integer status) {
+         clubService.approveDisband(id, status);
+         return Result.ok();
+     }
+ 
+     @PostMapping("/{id}/cancel-disband")
++    @PreAuthorize("isAuthenticated()")
+     public Result<Void> cancelDisband(@PathVariable Long id, Authentication auth) {
+         clubService.cancelDisband(id, getUserId(auth));
+         return Result.ok();
+     }
+ 
++    @DeleteMapping("/{clubId}/members/{memberId}")
++    @PreAuthorize("isAuthenticated()")
++    public Result<Void> removeMember(@PathVariable Long clubId, @PathVariable Long memberId, Authentication auth) {
++        clubService.removeMember(clubId, memberId, getUserId(auth));
++        return Result.ok();
++    }
++
++    @PostMapping("/{clubId}/transfer/{targetUserId}")
++    @PreAuthorize("isAuthenticated()")
++    public Result<Void> transferPresident(@PathVariable Long clubId, @PathVariable Long targetUserId, Authentication auth) {
++        clubService.transferPresidency(clubId, getUserId(auth), targetUserId);
++        return Result.ok();
++    }
++
++    @PutMapping("/{clubId}/members/{memberId}/role")
++    @PreAuthorize("isAuthenticated()")
++    public Result<Void> setMemberRole(@PathVariable Long clubId, @PathVariable Long memberId,
++            @RequestParam String role, Authentication auth) {
++        clubService.setMemberRole(clubId, memberId, getUserId(auth), role);
++        return Result.ok();
++    }
++
+     @PutMapping("/{id}")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> update(@PathVariable Long id, @RequestBody Club c) { clubService.updateClub(id, c); return Result.ok(); }
+ 
+     @PostMapping("/member/apply")
++    @PreAuthorize("isAuthenticated()")
+     public Result<ClubMember> apply(@RequestParam Long clubId, @RequestParam String reason, Authentication auth) {
+         return Result.ok(clubService.applyMember(clubId, getUserId(auth), reason));
+     }
+ 
+     @PutMapping("/member/{id}")
+-    public Result<Void> approveMember(@PathVariable Long id, @RequestParam Integer status) {
+-        clubService.approveMember(id, status); return Result.ok();
++    @PreAuthorize("isAuthenticated()")
++    public Result<Void> approveMember(@PathVariable Long id, @RequestParam Integer status, Authentication auth) {
++        clubService.approveMember(id, status, getUserId(auth)); return Result.ok();
+     }
+ 
+     @GetMapping("/member/my")
++    @PreAuthorize("isAuthenticated()")
+     public Result<List<ClubMember>> myMembers(Authentication auth) {
+         return Result.ok(clubService.getMyMemberships(getUserId(auth)));
+     }
+ 
+     @GetMapping("/{clubId}/members")
++    @PreAuthorize("permitAll()")
+     public Result<List<ClubMember>> members(@PathVariable Long clubId) {
+         return Result.ok(clubService.getMembers(clubId));
+     }
+ 
+-    @GetMapping("/activity")
+-    public Result<PageResult<Activity>> activities(
+-            @RequestParam(required = false) Long clubId,
+-            @RequestParam(defaultValue = "1") int page,
+-            @RequestParam(defaultValue = "10") int size) {
+-        return toPage(clubService.pageActivities(clubId, page, size));
+-    }
+-
+-    @PostMapping("/activity")
+-    public Result<Void> createActivity(@RequestBody Activity a) { clubService.saveActivity(a); return Result.ok(); }
+-
+-    @PostMapping("/activity/enroll")
+-    public Result<ActivityEnrollment> enroll(@RequestParam Long activityId, Authentication auth) {
+-        return Result.ok(clubService.enroll(activityId, getUserId(auth)));
+-    }
+-
+-    @GetMapping("/activity/{id}/enrollments")
+-    public Result<List<ActivityEnrollment>> enrollments(@PathVariable Long id) {
+-        return Result.ok(clubService.getEnrollments(id));
+-    }
+-
+-    @PutMapping("/activity/{id}/summary")
+-    public Result<Void> summary(@PathVariable Long id, @RequestParam String summary, @RequestParam(required = false) String images) {
+-        clubService.updateActivitySummary(id, summary, images != null ? images : ""); return Result.ok();
+-    }
+-
+     @GetMapping("/venue")
++    @PreAuthorize("isAuthenticated()")
+     public Result<List<Venue>> venues() { return Result.ok(clubService.getVenues()); }
+ 
+     @GetMapping("/venue/booking")
++    @PreAuthorize("isAuthenticated()")
+     public Result<PageResult<VenueBooking>> bookings(Authentication auth,
+             @RequestParam(defaultValue = "1") int page,
+             @RequestParam(defaultValue = "10") int size,
+@@ -129,11 +141,13 @@ public class ClubController {
+     }
+ 
+     @PostMapping("/venue/booking")
++    @PreAuthorize("isAuthenticated()")
+     public Result<Void> applyBooking(@RequestBody VenueBooking b, Authentication auth) {
+         b.setUserId(getUserId(auth)); clubService.applyBooking(b); return Result.ok();
+     }
+ 
+     @PutMapping("/venue/booking/{id}")
++    @PreAuthorize("hasAnyRole('admin', 'teacher')")
+     public Result<Void> approveBooking(@PathVariable Long id, Authentication auth,
+             @RequestParam Integer status, @RequestParam(required = false) String reason) {
+         clubService.approveBooking(id, getUserId(auth), status, reason != null ? reason : "");
+@@ -141,23 +155,19 @@ public class ClubController {
+     }
+ 
+     @DeleteMapping("/{id}")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> deleteClub(@PathVariable Long id) { clubService.deleteClub(id); return Result.ok(); }
+ 
+-    @DeleteMapping("/activity/{id}")
+-    public Result<Void> deleteActivity(@PathVariable Long id) { clubService.deleteActivity(id); return Result.ok(); }
+-
+-    @DeleteMapping("/activity/enroll/{id}")
+-    public Result<Void> cancelEnroll(@PathVariable Long id, Authentication auth) {
+-        clubService.cancelEnroll(id, getUserId(auth)); return Result.ok();
+-    }
+-
+     @PostMapping("/venue/add")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> addVenue(@RequestBody Venue v) { clubService.saveVenue(v); return Result.ok(); }
+ 
+     @PutMapping("/venue/{id}")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> updateVenue(@PathVariable Long id, @RequestBody Venue v) { clubService.updateVenue(id, v); return Result.ok(); }
+ 
+     @DeleteMapping("/venue/{id}")
++    @PreAuthorize("hasRole('admin')")
+     public Result<Void> deleteVenue(@PathVariable Long id) { clubService.deleteVenue(id); return Result.ok(); }
+ 
+     private <T> Result<PageResult<T>> toPage(Page<T> p) {
+diff --git a/backend/src/main/java/com/campus/module/club/service/ClubService.java b/backend/src/main/java/com/campus/module/club/service/ClubService.java
+index 8fa278f..12f941f 100644
+--- a/backend/src/main/java/com/campus/module/club/service/ClubService.java
++++ b/backend/src/main/java/com/campus/module/club/service/ClubService.java
+@@ -11,27 +11,22 @@ public interface ClubService {
+     void updateClub(Long id, Club c);
+     void approveClub(Long clubId, Integer status);
+     ClubMember applyMember(Long clubId, Long userId, String reason);
+-    void approveMember(Long memberId, Integer status);
++    void approveMember(Long memberId, Integer status, Long userId);
+     List<ClubMember> getMembers(Long clubId);
+     List<ClubMember> getMyMemberships(Long userId);
+     void leaveClub(Long clubId, Long userId);
+     void disbandClub(Long clubId, Long userId);
+     void approveDisband(Long clubId, Integer status);
+     void cancelDisband(Long clubId, Long userId);
+-
+-    Page<Activity> pageActivities(Long clubId, int page, int size);
+-    void saveActivity(Activity a);
+-    ActivityEnrollment enroll(Long activityId, Long userId);
+-    List<ActivityEnrollment> getEnrollments(Long activityId);
+-    void updateActivitySummary(Long id, String summary, String images);
++    void removeMember(Long clubId, Long memberId, Long userId);
++    void transferPresidency(Long clubId, Long currentUserId, Long targetUserId);
++    void setMemberRole(Long clubId, Long memberId, Long userId, String role);
+ 
+     List<Venue> getVenues();
+     Page<VenueBooking> pageBookings(Long userId, String role, int page, int size, Integer status);
+     void applyBooking(VenueBooking b);
+     void approveBooking(Long id, Long approverId, Integer status, String reason);
+     void deleteClub(Long id);
+-    void deleteActivity(Long id);
+-    void cancelEnroll(Long id, Long userId);
+     void saveVenue(Venue v);
+     void updateVenue(Long id, Venue v);
+     void deleteVenue(Long id);
+diff --git a/backend/src/main/java/com/campus/module/club/service/impl/ClubServiceImpl.java b/backend/src/main/java/com/campus/module/club/service/impl/ClubServiceImpl.java
+index f6ed7e9..31bb283 100644
+--- a/backend/src/main/java/com/campus/module/club/service/impl/ClubServiceImpl.java
++++ b/backend/src/main/java/com/campus/module/club/service/impl/ClubServiceImpl.java
+@@ -3,6 +3,8 @@ package com.campus.module.club.service.impl;
+ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+ import com.campus.common.BusinessException;
++import com.campus.module.admin.entity.Notification;
++import com.campus.module.admin.service.AdminService;
+ import com.campus.module.club.entity.*;
+ import com.campus.module.club.mapper.*;
+ import com.campus.module.club.service.ClubService;
+@@ -17,11 +19,10 @@ import java.util.List;
+ public class ClubServiceImpl implements ClubService {
+     private final ClubMapper clubMapper;
+     private final ClubMemberMapper memberMapper;
+-    private final ActivityMapper activityMapper;
+-    private final ActivityEnrollmentMapper enrollmentMapper;
+     private final VenueMapper venueMapper;
+     private final VenueBookingMapper bookingMapper;
+     private final com.campus.module.sys.mapper.SysUserMapper userMapper;
++    private final AdminService adminService;
+ 
+     @Override
+     public List<Club> getClubs() {
+@@ -43,7 +44,7 @@ public class ClubServiceImpl implements ClubService {
+             m.setClubId(c.getId());
+             m.setUserId(c.getPresidentId());
+             m.setRole("president");
+-            m.setStatus(1); // 社长自动通过
++            m.setStatus(0); // 社长待社团审核通过后才激活
+             m.setApplyTime(LocalDateTime.now());
+             memberMapper.insert(m);
+         }
+@@ -57,11 +58,30 @@ public class ClubServiceImpl implements ClubService {
+     public void approveClub(Long clubId, Integer status) {
+         Club club = clubMapper.selectById(clubId);
+         if (club == null) throw new BusinessException("社团不存在");
++        if (status != 1 && status != 2) throw new BusinessException("无效的审核状态");
+         club.setStatus(status);
+         clubMapper.updateById(club);
++        if (status == 1) {
++            // 审核通过，激活社长成员
++            ClubMember president = memberMapper.selectOne(
++                new LambdaQueryWrapper<ClubMember>()
++                    .eq(ClubMember::getClubId, clubId)
++                    .eq(ClubMember::getRole, "president"));
++            if (president != null) {
++                president.setStatus(1);
++                president.setApproveTime(LocalDateTime.now());
++                memberMapper.updateById(president);
++            }
++        } else {
++            // 审核拒绝，删除社长成员记录
++            memberMapper.delete(new LambdaQueryWrapper<ClubMember>()
++                .eq(ClubMember::getClubId, clubId)
++                .eq(ClubMember::getRole, "president"));
++        }
+     }
+ 
+     @Override
++    @Transactional
+     public ClubMember applyMember(Long clubId, Long userId, String reason) {
+         Long cnt = memberMapper.selectCount(new LambdaQueryWrapper<ClubMember>()
+             .eq(ClubMember::getClubId, clubId).eq(ClubMember::getUserId, userId)
+@@ -73,24 +93,60 @@ public class ClubServiceImpl implements ClubService {
+         m.setApplyTime(LocalDateTime.now());
+         m.setStatus(0);
+         memberMapper.insert(m);
++        // 通知社长
++        Club club = clubMapper.selectById(clubId);
++        if (club != null && club.getPresidentId() != null) {
++            var user = userMapper.selectById(userId);
++            String userName = user != null ? user.getRealName() : "某用户";
++            Notification n = new Notification();
++            n.setTitle("新成员申请");
++            n.setContent(userName + " 申请加入「" + club.getName() + "」");
++            n.setCategory("club");
++            n.setPublisherId(userId);
++            n.setCreateTime(LocalDateTime.now());
++            // 由于是给社长看的，需要存到通知表；但当前通知表无 recipient 字段
++            // 作为简化，publisherId 存为申请人，社长通过 category="club" 手动查看
++            adminService.saveNotification(n);
++        }
+         return m;
+     }
+ 
+     @Override
+     @Transactional
+-    public void approveMember(Long memberId, Integer status) {
++    public void approveMember(Long memberId, Integer status, Long userId) {
+         ClubMember m = memberMapper.selectById(memberId);
+         if (m == null) throw new BusinessException("申请记录不存在");
++
++        // 权限校验：管理员或该社团社长可审批
++        Club club = clubMapper.selectById(m.getClubId());
++        if (club == null) throw new BusinessException("社团不存在");
++        var operator = userMapper.selectById(userId);
++        boolean isAdmin = operator != null && operator.getRoleId() != null && operator.getRoleId() == 3L;
++        boolean isPresident = club.getPresidentId() != null && club.getPresidentId().equals(userId);
++        if (!isAdmin && !isPresident) {
++            throw new BusinessException("只有管理员或社团社长才能审批成员");
++        }
++
+         m.setStatus(status);
+         m.setApproveTime(LocalDateTime.now());
+         memberMapper.updateById(m);
+         if (status == 1) {
+-            Club club = clubMapper.selectById(m.getClubId());
+             if (club != null) {
+                 club.setMemberCount((club.getMemberCount() != null ? club.getMemberCount() : 0) + 1);
+                 clubMapper.updateById(club);
+             }
+         }
++        // 通知申请人
++        var user = userMapper.selectById(m.getUserId());
++        if (user != null) {
++            Notification n = new Notification();
++            n.setTitle(status == 1 ? "入社申请已通过" : "入社申请被拒绝");
++            n.setContent("你加入「" + club.getName() + "」的申请已" + (status == 1 ? "通过" : "被拒绝"));
++            n.setCategory("club");
++            n.setPublisherId(m.getUserId());
++            n.setCreateTime(LocalDateTime.now());
++            adminService.saveNotification(n);
++        }
+     }
+ 
+     @Override
+@@ -187,53 +243,78 @@ public class ClubServiceImpl implements ClubService {
+         }
+     }
+ 
+-    @Override
+-    public Page<Activity> pageActivities(Long clubId, int page, int size) {
+-        LambdaQueryWrapper<Activity> w = new LambdaQueryWrapper<>();
+-        if (clubId != null) w.eq(Activity::getClubId, clubId);
+-        w.orderByDesc(Activity::getCreateTime);
+-        return activityMapper.selectPage(new Page<>(page, size), w);
+-    }
+-
+-    @Override
+-    public void saveActivity(Activity a) { activityMapper.insert(a); }
+-
+     @Override
+     @Transactional
+-    public ActivityEnrollment enroll(Long activityId, Long userId) {
+-        Activity activity = activityMapper.selectById(activityId);
+-        if (activity == null) throw new BusinessException("活动不存在");
+-        Integer max = activity.getMaxEnroll();
+-        Integer enr = activity.getEnrolled();
+-        if (max != null && max > 0 && enr != null && enr >= max)
+-            throw new BusinessException("报名已满");
+-        Long cnt = enrollmentMapper.selectCount(new LambdaQueryWrapper<ActivityEnrollment>()
+-            .eq(ActivityEnrollment::getActivityId, activityId).eq(ActivityEnrollment::getUserId, userId));
+-        if (cnt > 0) throw new BusinessException("已报名");
+-        ActivityEnrollment e = new ActivityEnrollment();
+-        e.setActivityId(activityId); e.setUserId(userId);
+-        e.setStatus(1);
+-        e.setEnrollTime(LocalDateTime.now());
+-        enrollmentMapper.insert(e);
+-        activity.setEnrolled((enr != null ? enr : 0) + 1);
+-        activityMapper.updateById(activity);
+-        return e;
++    public void removeMember(Long clubId, Long memberId, Long userId) {
++        Club club = clubMapper.selectById(clubId);
++        if (club == null) throw new BusinessException("社团不存在");
++        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
++            throw new BusinessException("只有社长才能移除成员");
++        }
++        ClubMember target = memberMapper.selectById(memberId);
++        if (target == null || !target.getClubId().equals(clubId)) {
++            throw new BusinessException("成员不存在");
++        }
++        if ("president".equals(target.getRole())) {
++            throw new BusinessException("不能移除社长");
++        }
++        memberMapper.deleteById(memberId);
++        if (target.getStatus() == 1 && club.getMemberCount() != null && club.getMemberCount() > 0) {
++            club.setMemberCount(club.getMemberCount() - 1);
++            clubMapper.updateById(club);
++        }
+     }
+ 
+     @Override
+-    public List<ActivityEnrollment> getEnrollments(Long activityId) {
+-        return enrollmentMapper.selectList(new LambdaQueryWrapper<ActivityEnrollment>()
+-            .eq(ActivityEnrollment::getActivityId, activityId));
++    @Transactional
++    public void transferPresidency(Long clubId, Long currentUserId, Long targetUserId) {
++        Club club = clubMapper.selectById(clubId);
++        if (club == null) throw new BusinessException("社团不存在");
++        if (club.getPresidentId() == null || !club.getPresidentId().equals(currentUserId)) {
++            throw new BusinessException("只有社长才能转让社长职位");
++        }
++        ClubMember target = memberMapper.selectOne(
++            new LambdaQueryWrapper<ClubMember>()
++                .eq(ClubMember::getClubId, clubId)
++                .eq(ClubMember::getUserId, targetUserId));
++        if (target == null) throw new BusinessException("目标用户不是社团成员");
++        // 当前社长降为成员
++        ClubMember current = memberMapper.selectOne(
++            new LambdaQueryWrapper<ClubMember>()
++                .eq(ClubMember::getClubId, clubId)
++                .eq(ClubMember::getUserId, currentUserId));
++        if (current != null) {
++            current.setRole("member");
++            memberMapper.updateById(current);
++        }
++        // 目标升为社长
++        target.setRole("president");
++        memberMapper.updateById(target);
++        // 更新 club 的 presidentId
++        club.setPresidentId(targetUserId);
++        clubMapper.updateById(club);
+     }
+ 
+     @Override
+-    public void updateActivitySummary(Long id, String summary, String images) {
+-        Activity a = activityMapper.selectById(id);
+-        if (a == null) throw new BusinessException("活动不存在");
+-        a.setSummary(summary);
+-        a.setImages(images);
+-        a.setStatus(2);
+-        activityMapper.updateById(a);
++    @Transactional
++    public void setMemberRole(Long clubId, Long memberId, Long userId, String role) {
++        Club club = clubMapper.selectById(clubId);
++        if (club == null) throw new BusinessException("社团不存在");
++        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
++            throw new BusinessException("只有社长才能设置角色");
++        }
++        ClubMember target = memberMapper.selectById(memberId);
++        if (target == null || !target.getClubId().equals(clubId)) {
++            throw new BusinessException("成员不存在");
++        }
++        if ("president".equals(target.getRole())) {
++            throw new BusinessException("不能修改社长的角色");
++        }
++        if (!"vice_president".equals(role) && !"member".equals(role)) {
++            throw new BusinessException("无效的角色");
++        }
++        target.setRole(role);
++        memberMapper.updateById(target);
+     }
+ 
+     @Override
+@@ -269,16 +350,6 @@ public class ClubServiceImpl implements ClubService {
+     @Override
+     public void deleteClub(Long id) { clubMapper.deleteById(id); }
+ 
+-    @Override
+-    public void deleteActivity(Long id) { activityMapper.deleteById(id); }
+-
+-    @Override
+-    public void cancelEnroll(Long id, Long userId) {
+-        ActivityEnrollment e = enrollmentMapper.selectById(id);
+-        if (e == null || !e.getUserId().equals(userId)) throw new BusinessException("无权取消");
+-        enrollmentMapper.deleteById(id);
+-    }
+-
+     @Override
+     public void saveVenue(Venue v) { venueMapper.insert(v); }
+ 
+diff --git a/backend/src/main/java/com/campus/module/edu/controller/CourseController.java b/backend/src/main/java/com/campus/module/edu/controller/CourseController.java
+index b9ef809..c3725f1 100644
+--- a/backend/src/main/java/com/campus/module/edu/controller/CourseController.java
++++ b/backend/src/main/java/com/campus/module/edu/controller/CourseController.java
+@@ -6,7 +6,6 @@ import com.campus.common.Result;
+ import com.campus.module.edu.entity.Course;
+ import com.campus.module.edu.entity.CourseClass;
+ import com.campus.module.edu.entity.CourseSelection;
+-import com.campus.module.edu.entity.Grade;
+ import com.campus.module.edu.service.CourseService;
+ import io.jsonwebtoken.Claims;
+ import lombok.RequiredArgsConstructor;
+@@ -91,25 +90,6 @@ public class CourseController {
+         return Result.ok();
+     }
+ 
+-    @GetMapping("/grades")
+-    public Result<List<Grade>> grades(Authentication auth) {
+-        Claims claims = (Claims) auth.getDetails();
+-        return Result.ok(courseService.getStudentGrades(Long.parseLong(claims.getSubject())));
+-    }
+-
+-    @PostMapping("/grades")
+-    public Result<Void> inputGrade(@RequestBody Grade grade, Authentication auth) {
+-        Claims claims = (Claims) auth.getDetails();
+-        grade.setTeacherId(Long.parseLong(claims.getSubject()));
+-        courseService.inputGrade(grade);
+-        return Result.ok();
+-    }
+-
+-    @GetMapping("/grades/course/{courseId}")
+-    public Result<List<Grade>> courseGrades(@PathVariable Long courseId) {
+-        return Result.ok(courseService.getCourseGrades(courseId));
+-    }
+-
+     @GetMapping("/selections/course/{courseId}")
+     public Result<List<CourseSelection>> courseStudents(@PathVariable Long courseId) {
+         return Result.ok(courseService.getCourseStudents(courseId));
+diff --git a/backend/src/main/java/com/campus/module/edu/service/CourseService.java b/backend/src/main/java/com/campus/module/edu/service/CourseService.java
+index 800df54..5bfa8e5 100644
+--- a/backend/src/main/java/com/campus/module/edu/service/CourseService.java
++++ b/backend/src/main/java/com/campus/module/edu/service/CourseService.java
+@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
+ import com.campus.module.edu.entity.Course;
+ import com.campus.module.edu.entity.CourseClass;
+ import com.campus.module.edu.entity.CourseSelection;
+-import com.campus.module.edu.entity.Grade;
+ import java.util.List;
+ 
+ public interface CourseService extends IService<Course> {
+@@ -14,9 +13,6 @@ public interface CourseService extends IService<Course> {
+     void dropCourse(Long selectionId, Long studentId);
+     List<CourseSelection> getMySelections(Long studentId);
+     List<CourseSelection> getCourseStudents(Long courseId);
+-    void inputGrade(Grade grade);
+-    List<Grade> getStudentGrades(Long studentId);
+-    List<Grade> getCourseGrades(Long courseId);
+     List<Course> getTeacherCourses(Long teacherId);
+     void confirmCourse(Long courseId, Long teacherId);
+     void deleteCourse(Long courseId);
+diff --git a/backend/src/main/java/com/campus/module/edu/service/impl/CourseServiceImpl.java b/backend/src/main/java/com/campus/module/edu/service/impl/CourseServiceImpl.java
+index 21438f1..cef7c73 100644
+--- a/backend/src/main/java/com/campus/module/edu/service/impl/CourseServiceImpl.java
++++ b/backend/src/main/java/com/campus/module/edu/service/impl/CourseServiceImpl.java
+@@ -152,7 +152,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
+             }
+             Long gradeCnt = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
+                     .eq(Grade::getStudentId, s.getStudentId())
+-                    .eq(Grade::getCourseId, s.getCourseId()));
++                    .eq(Grade::getCourseId, s.getCourseId())
++                    .eq(Grade::getSemester, s.getSemester()));
+             s.setGraded(gradeCnt > 0);
+         }
+         return list;
+@@ -184,59 +185,6 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
+         jdbcTemplate.update("DELETE FROM edu_course WHERE id = ?", courseId);
+     }
+ 
+-    @Override
+-    @Transactional
+-    public void inputGrade(Grade grade) {
+-        if (grade.getScore() == null) throw new BusinessException("成绩不能为空");
+-        if (grade.getScore().compareTo(java.math.BigDecimal.ZERO) < 0 || grade.getScore().compareTo(new java.math.BigDecimal("100")) > 0)
+-            throw new BusinessException("分数必须在 0-100 之间");
+-        if (grade.getTeacherId() == null) throw new BusinessException("教师信息缺失");
+-        Course course = courseMapper.selectById(grade.getCourseId());
+-        if (course == null) throw new BusinessException("课程不存在");
+-        if (!course.getTeacherId().equals(grade.getTeacherId()))
+-            throw new BusinessException("您不是该课程的授课教师");
+-        Long selCnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
+-                .eq(CourseSelection::getStudentId, grade.getStudentId())
+-                .eq(CourseSelection::getCourseId, grade.getCourseId())
+-                .eq(CourseSelection::getStatus, 1));
+-        if (selCnt == 0) throw new BusinessException("该学生未选修此课程");
+-        Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
+-                .eq(Grade::getStudentId, grade.getStudentId())
+-                .eq(Grade::getCourseId, grade.getCourseId()));
+-        if (existCount > 0) throw new BusinessException("该学生该学期成绩已录入");
+-        grade.setCreateTime(LocalDateTime.now());
+-        gradeMapper.insert(grade);
+-    }
+-
+-    @Override
+-    public List<Grade> getStudentGrades(Long studentId) {
+-        List<Grade> grades = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
+-        for (Grade g : grades) {
+-            Course course = courseMapper.selectById(g.getCourseId());
+-            if (course != null) g.setCourseName(course.getCourseName());
+-        }
+-        return grades;
+-    }
+-
+-    @Override
+-    public List<Grade> getCourseGrades(Long courseId) {
+-        List<Grade> list = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getCourseId, courseId));
+-        for (Grade g : list) {
+-            if (g.getStudentId() != null) {
+-                com.campus.module.sys.entity.SysUser student = userMapper.selectById(g.getStudentId());
+-                if (student != null) {
+-                    g.setStudentName(student.getRealName());
+-                    g.setStudentUsername(student.getUsername());
+-                }
+-            }
+-            if (g.getCourseId() != null) {
+-                com.campus.module.edu.entity.Course course = courseMapper.selectById(g.getCourseId());
+-                if (course != null) g.setCourseName(course.getCourseName());
+-            }
+-        }
+-        return list;
+-    }
+-
+     @Override
+     public List<Course> getMySchedule(Long userId, String role, String semester, Integer week) {
+         List<Course> courses;
+diff --git a/frontend/src/api/club.ts b/frontend/src/api/club.ts
+index ceb247d..db21642 100644
+--- a/frontend/src/api/club.ts
++++ b/frontend/src/api/club.ts
+@@ -21,6 +21,16 @@ export function cancelDisband(clubId: number) {
+   return request.post(`/club/${clubId}/cancel-disband`)
+ }
+ 
++export function removeMember(clubId: number, memberId: number) {
++  return request.delete(`/club/${clubId}/members/${memberId}`)
++}
++export function transferPresident(clubId: number, targetUserId: number) {
++  return request.post(`/club/${clubId}/transfer/${targetUserId}`)
++}
++export function setMemberRole(clubId: number, memberId: number, role: string) {
++  return request.put(`/club/${clubId}/members/${memberId}/role`, null, { params: { role } })
++}
++
+ export function applyMember(clubId: number, reason: string) {
+   return request.post('/club/member/apply', null, { params: { clubId, reason } })
+ }
+@@ -30,18 +40,6 @@ export function approveMember(id: number, status: number) {
+ export function getMembers(clubId: number) { return request.get(`/club/${clubId}/members`) }
+ export function getMyMemberships() { return request.get('/club/member/my') }
+ 
+-export function getActivities(params: any) { return request.get('/club/activity', { params }) }
+-export function createActivity(data: any) { return request.post('/club/activity', data) }
+-export function enrollActivity(activityId: number) {
+-  return request.post('/club/activity/enroll', null, { params: { activityId } })
+-}
+-export function getEnrollments(activityId: number) {
+-  return request.get(`/club/activity/${activityId}/enrollments`)
+-}
+-export function updateActivitySummary(id: number, summary: string, images?: string) {
+-  return request.put(`/club/activity/${id}/summary`, null, { params: { summary, images } })
+-}
+-
+ export function getVenues() { return request.get('/club/venue') }
+ export function getBookings(params: any) { return request.get('/club/venue/booking', { params }) }
+ export function applyBooking(data: any) { return request.post('/club/venue/booking', data) }
+diff --git a/frontend/src/api/edu.ts b/frontend/src/api/edu.ts
+index c4c67ec..34c5407 100644
+--- a/frontend/src/api/edu.ts
++++ b/frontend/src/api/edu.ts
+@@ -36,14 +36,42 @@ export function dropCourse(selectionId: number) {
+   return request.delete(`/edu/selections/${selectionId}`)
+ }
+ 
+-export function getMyGrades() {
+-  return request.get('/edu/grades')
++export function getMyGrades(semester?: string) {
++  return request.get('/edu/grades/all', { params: { semester } })
+ }
+ 
+ export function inputGrade(data: any) {
+   return request.post('/edu/grades', data)
+ }
+ 
++export function updateGrade(id: number, data: any) {
++  return request.put(`/edu/grades/${id}`, data)
++}
++
++export function deleteGrade(id: number) {
++  return request.delete(`/edu/grades/${id}`)
++}
++
++export function getCourseGradesPage(courseId: number, params?: any) {
++  return request.get(`/edu/grades/course/${courseId}`, { params })
++}
++
++export function getCourseGrades(courseId: number) {
++  return request.get(`/edu/grades/course/${courseId}/all`)
++}
++
++export function getCourseStatistics(courseId: number) {
++  return request.get(`/edu/grades/course/${courseId}/statistics`)
++}
++
++export function getTranscript() {
++  return request.get('/edu/grades/transcript')
++}
++
++export function getTeacherGradeStatus(semester?: string) {
++  return request.get('/edu/grades/teacher/status', { params: { semester } })
++}
++
+ export function getSchedule(semester?: string, week?: number) {
+   return request.get('/edu/schedule', { params: { semester, week } })
+ }
+diff --git a/frontend/src/components/AppSidebar.vue b/frontend/src/components/AppSidebar.vue
+index 713c4c7..af6a87f 100644
+--- a/frontend/src/components/AppSidebar.vue
++++ b/frontend/src/components/AppSidebar.vue
+@@ -53,6 +53,7 @@
+ 
+           <el-menu-item index="/edu/grades">成绩查询</el-menu-item>
+           <el-menu-item v-if="userStore.role === 'teacher'" index="/edu/grade-entry">成绩录入</el-menu-item>
++          <el-menu-item v-if="userStore.role === 'teacher'" index="/edu/grade-status">成绩提交状态</el-menu-item>
+         </el-sub-menu>
+ 
+         <el-sub-menu index="admin">
+diff --git a/frontend/src/router/index.ts b/frontend/src/router/index.ts
+index 9d9e6ed..6653547 100644
+--- a/frontend/src/router/index.ts
++++ b/frontend/src/router/index.ts
+@@ -17,6 +17,7 @@ const routes = [
+       { path: 'edu/my-select', name: 'MySelectCourse', component: () => import('@/views/edu/MySelectCourse.vue') },
+       { path: 'edu/grades', name: 'GradeQuery', component: () => import('@/views/edu/GradeQuery.vue') },
+       { path: 'edu/grade-entry', name: 'GradeEntry', component: () => import('@/views/edu/GradeEntry.vue') },
++      { path: 'edu/grade-status', name: 'GradeStatus', component: () => import('@/views/edu/GradeStatus.vue') },
+       { path: 'admin/classes', name: 'ClassManagement', component: () => import('@/views/sys/ClassManagement.vue'), meta: { title: '班级管理' } },
+       { path: 'admin/departments', name: 'DepartmentManagement', component: () => import('@/views/sys/DepartmentManagement.vue'), meta: { title: '院系管理' } },
+       { path: 'admin/majors', name: 'MajorManagement', component: () => import('@/views/sys/MajorManagement.vue'), meta: { title: '专业管理' } },
+diff --git a/frontend/src/views/club/ActivityList.vue b/frontend/src/views/club/ActivityList.vue
+index b4c5f35..65a9b7b 100644
+--- a/frontend/src/views/club/ActivityList.vue
++++ b/frontend/src/views/club/ActivityList.vue
+@@ -40,7 +40,7 @@
+               </span>
+               <span class="inline-flex items-center gap-1">
+                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+-                {{ a.activityType || '未分类' }}
++                {{ a.category ? categoryLabel(a.category) : '未分类' }}
+               </span>
+               <span class="inline-flex items-center gap-1">
+                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+@@ -56,19 +56,19 @@
+               <div class="flex-1 max-w-xs">
+                 <div class="flex items-center justify-between text-xs mb-1">
+                   <span class="text-mist">报名人数</span>
+-                  <span class="font-medium" :class="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll ? 'text-red-500' : 'text-ink'">
+-                    {{ a.enrolled || 0 }}
+-                    <span v-if="a.maxEnroll > 0" class="text-mist font-normal"> / {{ a.maxEnroll }}</span>
++                  <span class="font-medium" :class="a.maxParticipants > 0 && (a.currentParticipants||0)+1 >= a.maxParticipants ? 'text-red-500' : 'text-ink'">
++                    {{ (a.currentParticipants || 0) + 1 }}
++                    <span v-if="a.maxParticipants > 0" class="text-mist font-normal"> / {{ a.maxParticipants }}</span>
+                   </span>
+                 </div>
+-                <div v-if="a.maxEnroll > 0" class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
++                <div v-if="a.maxParticipants > 0" class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                   <div class="h-full rounded-full transition-all duration-500"
+-                    :class="a.enrolled >= a.maxEnroll ? 'bg-red-400' : a.enrolled / a.maxEnroll > 0.6 ? 'bg-amber-400' : 'bg-emerald-400'"
+-                    :style="{ width: Math.min((a.enrolled || 0) / a.maxEnroll * 100, 100) + '%' }">
++                    :class="(a.currentParticipants||0)+1 >= a.maxParticipants ? 'bg-red-400' : ((a.currentParticipants||0)+1) / a.maxParticipants > 0.6 ? 'bg-amber-400' : 'bg-emerald-400'"
++                    :style="{ width: Math.min(((a.currentParticipants || 0) + 1) / a.maxParticipants * 100, 100) + '%' }">
+                   </div>
+                 </div>
+               </div>
+-              <span v-if="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll"
++              <span v-if="a.maxParticipants > 0 && (a.currentParticipants||0)+1 >= a.maxParticipants"
+                 class="inline-flex items-center gap-1 text-xs text-red-500 font-medium shrink-0">
+                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                 已满
+@@ -77,11 +77,11 @@
+           </div>
+           <div class="flex flex-col gap-2 shrink-0 pt-1">
+             <button v-if="userStore.role==='student' && a.status===1"
+-              :disabled="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll"
++              :disabled="a.maxParticipants > 0 && (a.currentParticipants||0)+1 >= a.maxParticipants"
+               @click="doEnroll(a)"
+               class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-ink text-white rounded-xl text-xs font-medium hover:bg-steel active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 shadow-sm">
+               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+-              {{ a.enrolled >= a.maxEnroll && a.maxEnroll > 0 ? '已满' : '报名' }}
++              {{ (a.currentParticipants||0)+1 >= a.maxParticipants && a.maxParticipants > 0 ? '已满' : '报名' }}
+             </button>
+             <button v-if="(userStore.role==='admin'||userStore.role==='teacher') && (a.status===2||a.status===3)"
+               @click="openSummary(a)"
+@@ -89,6 +89,12 @@
+               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+               活动总结
+             </button>
++            <button v-if="a.status===0 && (userStore.role==='admin'||userStore.role==='teacher')"
++              @click="doApprove(a.id)"
++              class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-[0.97] transition-all duration-200">
++              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
++              通过
++            </button>
+             <button @click="openEnrollments(a)"
+               class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium text-mist hover:text-ink hover:bg-gray-50 rounded-xl active:scale-[0.97] transition-all duration-200">
+               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+@@ -119,13 +125,13 @@
+             <el-input v-model="form.title" placeholder="请输入活动标题" />
+           </el-form-item>
+           <div class="grid grid-cols-2 gap-4">
+-            <el-form-item label="活动类型">
+-              <el-select v-model="form.activityType" placeholder="请选择类型" style="width:100%">
+-                <el-option label="讲座" value="讲座" />
+-                <el-option label="比赛" value="比赛" />
+-                <el-option label="团建" value="团建" />
+-                <el-option label="会议" value="会议" />
+-                <el-option label="其他" value="其他" />
++            <el-form-item label="活动类别">
++              <el-select v-model="form.category" placeholder="请选择类别" style="width:100%">
++                <el-option label="学术科技" value="academic" />
++                <el-option label="体育竞技" value="sports" />
++                <el-option label="文化艺术" value="cultural" />
++                <el-option label="志愿服务" value="volunteer" />
++                <el-option label="其他" value="other" />
+               </el-select>
+             </el-form-item>
+             <el-form-item label="活动地点">
+@@ -140,8 +146,8 @@
+               <el-date-picker v-model="form.endTime" type="datetime" placeholder="选择结束时间" style="width:100%" />
+             </el-form-item>
+           </div>
+-          <el-form-item label="人数上限">
+-            <el-input-number v-model="form.maxEnroll" :min="0" :max="9999" style="width:100%" />
++          <el-form-item label="人数上限（0=不限）">
++            <el-input-number v-model="form.maxParticipants" :min="0" :max="9999" style="width:100%" />
+           </el-form-item>
+           <el-form-item label="活动描述">
+             <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入活动描述" />
+@@ -196,7 +202,7 @@
+             </div>
+             <div>
+               <div class="text-sm font-medium text-ink">{{ e.userName || '未知用户' }}</div>
+-              <div class="text-xs text-mist">{{ e.enrollTime?.substring(0,16) || '' }}</div>
++              <div class="text-xs text-mist">{{ e.registerTime?.substring(0,16) || '' }}</div>
+             </div>
+           </div>
+         </div>
+@@ -212,7 +218,7 @@
+ 
+ <script setup lang="ts">
+ import { ref, reactive, onMounted } from 'vue'
+-import { getClubs, getActivities, createActivity, enrollActivity, getEnrollments, updateActivitySummary } from '@/api/club'
++import { getClubs, getPublicActivities, createActivity, registerActivity, getRegistrations, updateActivitySummary, approveActivity } from '@/api/activity'
+ import { useUserStore } from '@/store/user'
+ import { ElMessage, ElMessageBox } from 'element-plus'
+ 
+@@ -232,11 +238,11 @@ const createVisible = ref(false)
+ const form = reactive({
+   clubId: null as number | null,
+   title: '',
+-  activityType: '',
++  category: '',
+   location: '',
+   startTime: '',
+   endTime: '',
+-  maxEnroll: 0,
++  maxParticipants: 0,
+   description: '',
+ })
+ 
+@@ -258,12 +264,15 @@ async function fetchClubs() {
+   }
+ }
+ 
++function categoryLabel(cat: string) {
++  const m: Record<string, string> = { academic: '学术科技', sports: '体育竞技', cultural: '文化艺术', volunteer: '志愿服务', other: '其他' }
++  return m[cat] || cat || '未分类'
++}
++
+ async function fetchActivities() {
+   loading.value = true
+   try {
+-    const params: any = { page: page.value, size: pageSize }
+-    if (filterClubId.value) params.clubId = filterClubId.value
+-    const r = await getActivities(params)
++    const r = await getPublicActivities({ page: page.value, size: pageSize, clubId: filterClubId.value || undefined })
+     activities.value = r.data.records || []
+     total.value = r.data.total || 0
+   } catch {
+@@ -276,11 +285,11 @@ async function fetchActivities() {
+ function showCreate() {
+   form.clubId = null
+   form.title = ''
+-  form.activityType = ''
++  form.category = ''
+   form.location = ''
+   form.startTime = ''
+   form.endTime = ''
+-  form.maxEnroll = 0
++  form.maxParticipants = 0
+   form.description = ''
+   createVisible.value = true
+ }
+@@ -300,8 +309,19 @@ async function doCreate() {
+   finally { submitting.value = false }
+ }
+ 
++async function doApprove(activityId: number) {
++  try {
++    await ElMessageBox.confirm('确认通过该活动审核？通过后学生可报名。', '提示', { type: 'info' })
++  } catch { return }
++  try {
++    await approveActivity(activityId, 1)
++    ElMessage.success('已通过')
++    fetchActivities()
++  } catch { ElMessage.error('操作失败') }
++}
++
+ async function doEnroll(activity: any) {
+-  if (activity.maxEnroll > 0 && activity.enrolled >= activity.maxEnroll) {
++  if (activity.maxParticipants > 0 && (activity.currentParticipants || 0) + 1 >= activity.maxParticipants) {
+     ElMessage.warning('报名人数已满')
+     return
+   }
+@@ -312,7 +332,7 @@ async function doEnroll(activity: any) {
+   }
+   enrolling.value = true
+   try {
+-    await enrollActivity(activity.id)
++    await registerActivity(activity.id)
+     ElMessage.success('报名成功')
+     fetchActivities()
+   } catch (e: any) {
+@@ -346,8 +366,8 @@ async function openEnrollments(activity: any) {
+   enrollVisible.value = true
+   enrolling.value = true
+   try {
+-    const r = await getEnrollments(activity.id)
+-    enrollments.value = r.data || []
++    const r = await getRegistrations(activity.id, { page: 1, size: 999 })
++    enrollments.value = r.data.records || []
+   } catch { enrollments.value = [] }
+   finally { enrolling.value = false }
+ }
+diff --git a/frontend/src/views/club/ClubList.vue b/frontend/src/views/club/ClubList.vue
+index a5a50b7..47a3b89 100644
+--- a/frontend/src/views/club/ClubList.vue
++++ b/frontend/src/views/club/ClubList.vue
+@@ -147,12 +147,12 @@
+         <div>
+           <div class="flex items-center justify-between mb-3">
+             <h4 class="text-sm font-semibold text-gray-900">成员列表</h4>
+-            <span class="text-xs text-gray-400">{{ members.length }} 人</span>
++            <span class="text-xs text-gray-400">{{ displayMembers.length }} 人</span>
+           </div>
+-          <div v-if="members.length===0" class="text-center text-gray-400 py-8 text-sm bg-gray-50 rounded-xl">
++          <div v-if="displayMembers.length===0" class="text-center text-gray-400 py-8 text-sm bg-gray-50 rounded-xl">
+             暂无成员
+           </div>
+-          <div v-for="m in members" :key="m.id" class="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
++          <div v-for="m in displayMembers" :key="m.id" class="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+             <div class="flex items-center gap-3">
+               <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                 :style="{ background: memberColors[(m.id || 0) % memberColors.length] }">
+@@ -164,7 +164,7 @@
+                 <span v-else-if="m.role==='vice_president'" class="ml-1.5 text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md">副社长</span>
+               </div>
+             </div>
+-            <div v-if="(userStore.role==='admin'||userStore.role==='teacher') && m.status===0" class="flex gap-2">
++            <div v-if="(userStore.role==='admin'||userStore.role==='teacher') && m.status===0 && m.role!=='president'" class="flex gap-2">
+               <button @click="doApproveMember(m.id,1)" class="px-3 py-1.5 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors">通过</button>
+               <button @click="doApproveMember(m.id,2)" class="px-3 py-1.5 text-xs border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors">拒绝</button>
+             </div>
+@@ -214,7 +214,7 @@
+ </template>
+ 
+ <script setup lang="ts">
+-import { ref, reactive, onMounted } from 'vue'
++import { ref, reactive, computed, onMounted } from 'vue'
+ import { useRouter } from 'vue-router'
+ import { getClubs, getMyMemberships, createClub, updateClub, deleteClub, applyMember, approveMember, getMembers, approveClub, approveDisband } from '@/api/club'
+ import { useUserStore } from '@/store/user'
+@@ -238,6 +238,8 @@ const detailClub = ref<any>(null)
+ const members = ref<any[]>([])
+ const myMemberInfo = ref<any>(null)
+ 
++const displayMembers = computed(() => members.value.filter((m: any) => m.status === 1))
++
+ const createVisible = ref(false)
+ const createForm = reactive({ name: '', description: '' })
+ 
+diff --git a/frontend/src/views/club/ClubSpace.vue b/frontend/src/views/club/ClubSpace.vue
+index f87551f..e3130cb 100644
+--- a/frontend/src/views/club/ClubSpace.vue
++++ b/frontend/src/views/club/ClubSpace.vue
+@@ -7,53 +7,177 @@
+       <h2 class="text-lg font-bold text-ink">{{ club?.name || '社团空间' }}</h2>
+     </div>
+ 
+-    <div v-if="club" class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+-      <div class="lg:col-span-2 space-y-5">
+-        <div class="bg-white rounded-xl border border-soft p-5">
+-          <div class="flex items-center mb-4">
+-            <div v-if="club.logo" class="w-16 h-16 rounded-lg bg-soft flex items-center justify-center mr-4 overflow-hidden">
+-              <img :src="club.logo" class="w-full h-full object-cover" />
+-            </div>
+-            <div v-else class="w-16 h-16 rounded-lg bg-ink/10 flex items-center justify-center mr-4">
+-              <el-icon size="32" class="text-ink/50"><OfficeBuilding /></el-icon>
++    <div v-if="club" class="grid grid-cols-1 lg:grid-cols-4 gap-5">
++      <div class="lg:col-span-3">
++        <el-tabs v-model="activeTab" class="mb-4">
++          <el-tab-pane label="社团概况" name="overview">
++            <div class="bg-white rounded-xl border border-soft p-5 mb-5">
++              <div class="flex items-center mb-4">
++                <div v-if="club.logo" class="w-16 h-16 rounded-lg bg-soft flex items-center justify-center mr-4 overflow-hidden">
++                  <img :src="club.logo" class="w-full h-full object-cover" />
++                </div>
++                <div v-else class="w-16 h-16 rounded-lg bg-ink/10 flex items-center justify-center mr-4">
++                  <el-icon size="32" class="text-ink/50"><OfficeBuilding /></el-icon>
++                </div>
++                <div>
++                  <h3 class="text-xl font-semibold text-ink">{{ club.name }}</h3>
++                  <p class="text-sm text-ash mt-1">{{ club.description }}</p>
++                </div>
++              </div>
++              <div class="flex gap-6 text-sm text-steel">
++                <span><el-icon class="mr-1"><User /></el-icon> {{ club.memberCount || 0 }} 名成员</span>
++                <span v-if="club.presidentName"><el-icon class="mr-1"><UserFilled /></el-icon> 社长: {{ club.presidentName }}</span>
++                <span v-if="club.advisorName"><el-icon class="mr-1"><Document /></el-icon> 指导老师: {{ club.advisorName }}</span>
++              </div>
+             </div>
+-            <div>
+-              <h3 class="text-xl font-semibold text-ink">{{ club.name }}</h3>
+-              <p class="text-sm text-ash mt-1">{{ club.description }}</p>
++
++            <div class="bg-white rounded-xl border border-soft p-5">
++              <div class="flex items-center justify-between mb-4">
++                <h4 class="text-sm font-semibold text-ink">社团成员</h4>
++                <span class="text-xs text-mist">{{ approvedMembers.length }} 人</span>
++              </div>
++              <div v-if="approvedMembers.length === 0" class="text-center text-mist py-8 text-sm">暂无成员</div>
++              <div v-else class="space-y-3">
++                <div v-for="m in approvedMembers" :key="m.id" class="flex items-center justify-between py-2 border-b border-wash last:border-0">
++                  <div class="flex items-center">
++                    <div class="w-10 h-10 rounded-full bg-ink/10 flex items-center justify-center mr-3">
++                      <el-icon class="text-ink/50"><User /></el-icon>
++                    </div>
++                    <div>
++                      <div class="text-sm font-medium text-ink">{{ m.userName || '未知用户' }}</div>
++                      <div class="text-xs text-mist">
++                        <el-tag size="small" :type="m.role==='president'?'danger':m.role==='vice_president'?'warning':''" class="mr-2">
++                          {{ m.role==='president'?'社长':m.role==='vice_president'?'副社长':'成员' }}
++                        </el-tag>
++                      </div>
++                    </div>
++                  </div>
++                  <div v-if="isPresident() && m.userId !== userStore.userInfo?.id" class="flex gap-1">
++                    <el-dropdown trigger="click" @command="(cmd:string) => handleMemberAction(cmd, m)">
++                      <button class="px-2 py-1 text-sm text-steel hover:text-ink rounded hover:bg-wash transition-colors">
++                        <el-icon><MoreFilled /></el-icon>
++                      </button>
++                      <template #dropdown>
++                        <el-dropdown-menu>
++                          <el-dropdown-item command="remove" class="text-red-500">移除</el-dropdown-item>
++                          <el-dropdown-item v-if="m.role!=='vice_president'" command="setVice">设为副社长</el-dropdown-item>
++                          <el-dropdown-item v-if="m.role==='vice_president'" command="unsetVice">取消副社长</el-dropdown-item>
++                          <el-dropdown-item command="transfer">转让社长</el-dropdown-item>
++                        </el-dropdown-menu>
++                      </template>
++                    </el-dropdown>
++                  </div>
++                </div>
++              </div>
+             </div>
+-          </div>
+-          <div class="flex gap-6 text-sm text-steel">
+-            <span><el-icon class="mr-1"><User /></el-icon> {{ club.memberCount || 0 }} 名成员</span>
+-            <span v-if="club.presidentName"><el-icon class="mr-1"><UserFilled /></el-icon> 社长: {{ club.presidentName }}</span>
+-            <span v-if="club.advisorName"><el-icon class="mr-1"><Document /></el-icon> 指导老师: {{ club.advisorName }}</span>
+-          </div>
+-        </div>
++          </el-tab-pane>
+ 
+-        <div class="bg-white rounded-xl border border-soft p-5">
+-          <div class="flex items-center justify-between mb-4">
+-            <h4 class="text-sm font-semibold text-ink">社团成员</h4>
+-          </div>
+-          <div v-if="members.length === 0" class="text-center text-mist py-8 text-sm">
+-            暂无成员
+-          </div>
+-          <div v-else class="space-y-3">
+-            <div v-for="m in members" :key="m.id" class="flex items-center justify-between py-2 border-b border-wash last:border-0">
+-                <div class="flex items-center">
+-                  <div class="w-10 h-10 rounded-full bg-ink/10 flex items-center justify-center mr-3">
+-                    <el-icon class="text-ink/50"><User /></el-icon>
++          <el-tab-pane label="社团活动" name="activities">
++            <div class="bg-white rounded-xl border border-soft p-5">
++              <div class="flex items-center justify-between mb-4">
++                <h4 class="text-sm font-semibold text-ink">活动动态</h4>
++                <button v-if="isPresident()" @click="showCreateActivity = true"
++                  class="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors">
++                  创建活动
++                </button>
++              </div>
++              <div v-if="activities.length === 0" class="text-center text-mist py-8 text-sm">
++                <p>暂无活动</p>
++              </div>
++              <div v-else class="space-y-4">
++                <div v-for="a in activities" :key="a.id" class="flex items-start gap-4 p-4 bg-gray-50 rounded-xl">
++                  <div class="flex-1 min-w-0">
++                    <div class="flex items-center gap-2 mb-1">
++                      <span class="text-sm font-semibold text-ink">{{ a.title }}</span>
++                      <el-tag size="small" :type="a.status===1?'success':a.status===4?'info':a.status===2?'danger':'warning'">
++                        {{ a.status===1?'报名中':a.status===3?'活动中':a.status===4?'已结束':a.status===2?'已驳回':'待审核' }}
++                      </el-tag>
++                    </div>
++                    <div class="text-xs text-mist space-y-0.5">
++                      <div v-if="a.category">类别: {{ categoryLabel(a.category) }}</div>
++                      <div v-if="a.location">地点: {{ a.location }}</div>
++                      <div v-if="a.startTime">{{ a.startTime.substring(0,16) }} ~ {{ a.endTime?.substring(0,16) }}</div>
++                      <div v-if="a.creatorName">发起人: {{ a.creatorName }}</div>
++                    </div>
++                    <div v-if="a.maxParticipants" class="mt-2 flex items-center gap-2">
++                      <el-progress :percentage="Math.round(((a.currentParticipants||0)+1)/a.maxParticipants*100)" :stroke-width="6" class="flex-1" />
++                      <span class="text-xs text-mist whitespace-nowrap">{{ (a.currentParticipants||0)+1 }}/{{ a.maxParticipants }}</span>
++                    </div>
++                    <div v-if="a.description" class="mt-1 text-xs text-gray-400 line-clamp-2">{{ a.description }}</div>
++                    <div v-if="a.rejectReason && a.status===2" class="mt-1 text-xs text-red-500">驳回原因: {{ a.rejectReason }}</div>
++                  </div>
++                  <div class="flex flex-col gap-2 shrink-0">
++                    <button v-if="a.status===1 && !a.registered && a.creatorId !== userStore.userInfo?.id"
++                      @click="doRegister(a.id)" class="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700">
++                      报名
++                    </button>
++                    <button v-else-if="a.status===1 && a.registered && a.creatorId !== userStore.userInfo?.id"
++                      @click="doCancelRegister(a.id)" class="px-3 py-1 text-xs border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">
++                      取消报名
++                    </button>
++                    <button v-if="a.status===0 && isPresident()"
++                      @click="doApproveActivity(a.id,1)" class="px-3 py-1 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
++                      通过
++                    </button>
++                    <button v-if="a.status===0 && isPresident()"
++                      @click="doApproveActivity(a.id,2)" class="px-3 py-1 text-xs border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">
++                      驳回
++                    </button>
+                   </div>
++                </div>
++              </div>
++            </div>
++
++            <el-dialog v-model="showCreateActivity" title="创建活动" width="500px" top="15vh">
++              <el-form :model="activityForm" label-position="top">
++                <el-form-item label="活动标题"><el-input v-model="activityForm.title" /></el-form-item>
++                <el-form-item label="活动类别">
++                  <el-select v-model="activityForm.category" class="w-full">
++                    <el-option label="学术科技" value="academic" />
++                    <el-option label="体育竞技" value="sports" />
++                    <el-option label="文化艺术" value="cultural" />
++                    <el-option label="志愿服务" value="volunteer" />
++                    <el-option label="其他" value="other" />
++                  </el-select>
++                </el-form-item>
++                <el-form-item label="地点"><el-input v-model="activityForm.location" /></el-form-item>
++                <el-form-item label="开始时间">
++                  <el-date-picker v-model="activityForm.startTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" />
++                </el-form-item>
++                <el-form-item label="结束时间">
++                  <el-date-picker v-model="activityForm.endTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" />
++                </el-form-item>
++                <el-form-item label="人数上限（0=不限）">
++                  <el-input-number v-model="activityForm.maxParticipants" :min="0" class="w-full" />
++                </el-form-item>
++                <el-form-item label="描述"><el-input v-model="activityForm.description" type="textarea" :rows="3" /></el-form-item>
++              </el-form>
++              <template #footer>
++                <el-button @click="showCreateActivity=false">取消</el-button>
++                <el-button type="primary" @click="doCreateActivity" :loading="submitting">提交审核</el-button>
++              </template>
++            </el-dialog>
++          </el-tab-pane>
++
++          <el-tab-pane v-if="isPresident() || userStore.role==='admin'" label="成员管理" name="management">
++            <div class="bg-white rounded-xl border border-soft p-5">
++              <h4 class="text-sm font-semibold text-ink mb-4">待审批成员</h4>
++              <div v-if="pendingMembers.length === 0" class="text-center text-mist py-8 text-sm">暂无待审批申请</div>
++              <div v-else class="space-y-3">
++                <div v-for="m in pendingMembers" :key="m.id" class="flex items-center justify-between py-2 border-b border-wash last:border-0">
+                   <div>
+                     <div class="text-sm font-medium text-ink">{{ m.userName || '未知用户' }}</div>
+-                    <div class="text-xs text-mist">
+-                      <el-tag size="small" :type="m.role==='president'?'danger':m.role==='vice_president'?'warning':''" class="mr-2">
+-                        {{ m.role==='president'?'社长':m.role==='vice_president'?'副社长':'成员' }}
+-                      </el-tag>
+-                    </div>
++                    <div class="text-xs text-mist">{{ m.applyReason || '无申请理由' }}</div>
++                  </div>
++                  <div class="flex gap-2">
++                    <button @click="doApproveMember(m.id,1)" class="px-3 py-1 text-xs bg-gray-900 text-white rounded-lg hover:bg-gray-700">通过</button>
++                    <button @click="doApproveMember(m.id,2)" class="px-3 py-1 text-xs border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">拒绝</button>
+                   </div>
+                 </div>
+               </div>
+-          </div>
+-        </div>
++            </div>
++          </el-tab-pane>
++        </el-tabs>
+       </div>
+ 
+       <div class="space-y-5">
+@@ -82,34 +206,27 @@
+             <div class="text-mist mt-2">
+               状态: <span class="text-steel">{{ myMember.status===1?'已通过':'待审核' }}</span>
+             </div>
+-            <button 
+-              v-if="myMember.role === 'president' && club?.status === 1" 
+-              @click="handleDisband" 
++            <div v-if="myMember.status===0 && myMember.role==='president'" class="text-xs text-amber-500 mt-1">
++              社团尚未通过审核，社长身份待激活
++            </div>
++            <button
++              v-if="myMember.role === 'president' && club?.status === 1"
++              @click="handleDisband"
+               class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+-            >
+-              申请解散
+-            </button>
+-            <button 
+-              v-if="myMember.role === 'president' && club?.status === 3" 
+-              @click="handleCancelDisband" 
++            >申请解散</button>
++            <button
++              v-if="myMember.role === 'president' && club?.status === 3"
++              @click="handleCancelDisband"
+               class="mt-4 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+-            >
+-              撤销解散申请
+-            </button>
+-            <button 
+-              v-else-if="myMember.role !== 'president'" 
+-              @click="handleLeave" 
++            >撤销解散申请</button>
++            <button
++              v-else-if="myMember.role !== 'president'"
++              @click="handleLeave"
+               class="mt-4 w-full px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+-            >
+-              退出社团
+-            </button>
+-            <div v-else class="text-xs text-mist mt-4">
+-              社长不能退出社团
+-            </div>
+-          </div>
+-          <div v-else class="text-sm text-mist">
+-            你还不是该社团成员
++            >退出社团</button>
++            <div v-else class="text-xs text-mist mt-4">社长不能退出社团</div>
+           </div>
++          <div v-else class="text-sm text-mist">你还不是该社团成员</div>
+         </div>
+       </div>
+     </div>
+@@ -117,12 +234,16 @@
+ </template>
+ 
+ <script setup lang="ts">
+-import { ref, onMounted } from 'vue'
++import { ref, computed, onMounted } from 'vue'
+ import { useRoute, useRouter } from 'vue-router'
+-import { getClub, getMembers, getMyMemberships, leaveClub, disbandClub, cancelDisband } from '@/api/club'
++import { getClub, getMembers, getMyMemberships,
++  leaveClub, disbandClub, cancelDisband,
++  removeMember, transferPresident, setMemberRole, approveMember } from '@/api/club'
++import { getPublicActivities, createActivity as createCenterActivity,
++  registerActivity, cancelRegistration, approveActivity as approveCenterActivity } from '@/api/activity'
+ import { useUserStore } from '@/store/user'
+ import { ElMessage, ElMessageBox } from 'element-plus'
+-import { ArrowLeft, OfficeBuilding, User, UserFilled, Document } from '@element-plus/icons-vue'
++import { ArrowLeft, OfficeBuilding, User, UserFilled, Document, MoreFilled } from '@element-plus/icons-vue'
+ 
+ const userStore = useUserStore()
+ const route = useRoute()
+@@ -131,20 +252,28 @@ const club = ref<any>(null)
+ const members = ref<any[]>([])
+ const myMember = ref<any>(null)
+ const loading = ref(false)
++const submitting = ref(false)
++const activeTab = ref('overview')
++const activities = ref<any[]>([])
++const showCreateActivity = ref(false)
++const activityForm = ref<any>({ title: '', category: '', location: '', startTime: '', endTime: '', maxParticipants: 0, description: '' })
++
++const approvedMembers = computed(() => members.value.filter((m: any) => m.status === 1))
++const pendingMembers = computed(() => members.value.filter((m: any) => m.status === 0 && m.role !== 'president'))
++
++const clubId = () => parseInt(route.params.id as string)
+ 
+ async function fetchData() {
+-  const clubId = route.params.id as string
+   loading.value = true
+   try {
+-    const clubRes = await getClub(parseInt(clubId))
++    const clubRes = await getClub(clubId())
+     club.value = clubRes.data
+-
+-    const membersRes = await getMembers(parseInt(clubId))
++    const membersRes = await getMembers(clubId())
+     members.value = membersRes.data || []
+-
+     const myRes = await getMyMemberships()
+     const myMemberships = myRes.data || []
+-    myMember.value = myMemberships.find((m: any) => m.clubId === parseInt(clubId))
++    myMember.value = myMemberships.find((m: any) => m.clubId === clubId())
++    fetchActivities()
+   } catch (e) {
+     console.error('获取数据失败', e)
+   } finally {
+@@ -152,44 +281,140 @@ async function fetchData() {
+   }
+ }
+ 
++async function fetchActivities() {
++  try {
++    const r = await getPublicActivities({ clubId: clubId(), page: 1, size: 20 })
++    activities.value = r.data?.records || []
++  } catch { activities.value = [] }
++}
++
+ async function handleLeave() {
+   try {
+     await ElMessageBox.confirm('确定要退出该社团吗？', '提示', { type: 'warning' })
+-    await leaveClub(parseInt(route.params.id as string))
++    await leaveClub(clubId())
+     ElMessage.success('退出成功')
+     router.push('/club/list')
+   } catch (e) {
+-    if (e !== 'cancel') {
+-      ElMessage.error('退出失败')
+-    }
++    if (e !== 'cancel') ElMessage.error('退出失败')
+   }
+ }
+ 
+ async function handleDisband() {
+   try {
+     await ElMessageBox.confirm('确定要申请解散该社团吗？申请后需要管理员审核。', '提示', { type: 'warning' })
+-    await disbandClub(parseInt(route.params.id as string))
++    await disbandClub(clubId())
+     ElMessage.success('已提交解散申请')
+     await fetchData()
+   } catch (e) {
+-    if (e !== 'cancel') {
+-      ElMessage.error('申请失败')
+-    }
++    if (e !== 'cancel') ElMessage.error('申请失败')
+   }
+ }
+ 
+ async function handleCancelDisband() {
+   try {
+     await ElMessageBox.confirm('确定要撤销解散申请吗？', '提示', { type: 'warning' })
+-    await cancelDisband(parseInt(route.params.id as string))
++    await cancelDisband(clubId())
+     ElMessage.success('已撤销解散申请')
+     await fetchData()
+   } catch (e) {
+-    if (e !== 'cancel') {
+-      ElMessage.error('撤销失败')
+-    }
++    if (e !== 'cancel') ElMessage.error('撤销失败')
++  }
++}
++
++async function handleRemoveMember(memberId: number, userName: string) {
++  try {
++    await ElMessageBox.confirm(`确定要移除成员「${userName}」吗？`, '提示', { type: 'warning' })
++    await removeMember(clubId(), memberId)
++    ElMessage.success('已移除')
++    await fetchData()
++  } catch (e) {
++    if (e !== 'cancel') ElMessage.error('移除失败')
++  }
++}
++
++async function handleTransfer(targetUserId: number, userName: string) {
++  try {
++    await ElMessageBox.confirm(`确定要将社长职位转让给「${userName}」吗？转让后你将变为普通成员。`, '提示', { type: 'warning' })
++    await transferPresident(clubId(), targetUserId)
++    ElMessage.success('转让成功')
++    await fetchData()
++  } catch (e) {
++    if (e !== 'cancel') ElMessage.error('转让失败')
++  }
++}
++
++async function handleSetRole(memberId: number, role: string, userName: string) {
++  const label = role === 'vice_president' ? '副社长' : '普通成员'
++  try {
++    await ElMessageBox.confirm(`确定将「${userName}」设为${label}吗？`, '提示', { type: 'info' })
++    await setMemberRole(clubId(), memberId, role)
++    ElMessage.success('设置成功')
++    await fetchData()
++  } catch (e) {
++    if (e !== 'cancel') ElMessage.error('设置失败')
+   }
+ }
+ 
++async function doApproveMember(id: number, status: number) {
++  try {
++    await approveMember(id, status)
++    ElMessage.success(status === 1 ? '已通过' : '已拒绝')
++    await fetchData()
++  } catch { ElMessage.error('操作失败') }
++}
++
++async function doCreateActivity() {
++  if (!activityForm.value.title?.trim()) { ElMessage.warning('请输入活动标题'); return }
++  submitting.value = true
++  try {
++    await createCenterActivity({ ...activityForm.value, clubId: clubId() })
++    ElMessage.success('提交成功，等待审核')
++    showCreateActivity.value = false
++    activityForm.value = { title: '', category: '', location: '', startTime: '', endTime: '', maxParticipants: 0, description: '' }
++    await fetchActivities()
++  } catch { ElMessage.error('创建失败') }
++  finally { submitting.value = false }
++}
++
++async function doRegister(activityId: number) {
++  try {
++    await registerActivity(activityId)
++    ElMessage.success('报名成功')
++    await fetchActivities()
++  } catch { ElMessage.error('报名失败') }
++}
++
++async function doCancelRegister(activityId: number) {
++  try {
++    await cancelRegistration(activityId)
++    ElMessage.success('已取消报名')
++    await fetchActivities()
++  } catch { ElMessage.error('取消报名失败') }
++}
++
++async function doApproveActivity(activityId: number, status: number) {
++  try {
++    await approveCenterActivity(activityId, status, status === 2 ? '社长驳回' : '')
++    ElMessage.success(status === 1 ? '已通过' : '已驳回')
++    await fetchActivities()
++  } catch { ElMessage.error('操作失败') }
++}
++
++function categoryLabel(cat: string) {
++  const m: Record<string, string> = { academic: '学术科技', sports: '体育竞技', cultural: '文化艺术', volunteer: '志愿服务', other: '其他' }
++  return m[cat] || cat || '未分类'
++}
++
++function handleMemberAction(cmd: string, m: any) {
++  if (cmd === 'remove') return handleRemoveMember(m.id, m.userName)
++  if (cmd === 'transfer') return handleTransfer(m.userId, m.userName)
++  if (cmd === 'setVice') return handleSetRole(m.id, 'vice_president', m.userName)
++  if (cmd === 'unsetVice') return handleSetRole(m.id, 'member', m.userName)
++}
++
++function isPresident() {
++  return myMember.value?.role === 'president' && myMember.value?.status === 1
++}
++
+ onMounted(fetchData)
+-</script>
++</script>
+\ No newline at end of file
+diff --git a/frontend/src/views/edu/GradeEntry.vue b/frontend/src/views/edu/GradeEntry.vue
+index 630a09b..c7efe6f 100644
+--- a/frontend/src/views/edu/GradeEntry.vue
++++ b/frontend/src/views/edu/GradeEntry.vue
+@@ -64,20 +64,27 @@
+               </el-select>
+             </template>
+           </el-table-column>
+-          <el-table-column label="分数" width="120">
++          <el-table-column label="分数/等级" width="190">
+             <template #default="{row}">
+-              <el-input-number v-model="scores[row.id]" :min="0" :max="100" :disabled="gradeTypes[row.id]==='等级制'" placeholder="分数" class="w-full" />
+-            </template>
+-          </el-table-column>
+-          <el-table-column label="等级" width="100">
+-            <template #default="{row}">
+-              <el-select v-model="gradeLevels[row.id]" class="w-full" :disabled="gradeTypes[row.id]!=='等级制'">
+-                <el-option label="优" value="优" />
+-                <el-option label="良" value="良" />
+-                <el-option label="中" value="中" />
+-                <el-option label="及格" value="及格" />
+-                <el-option label="不及格" value="不及格" />
+-              </el-select>
++              <div class="flex items-center gap-2">
++                <el-input-number
++                  v-model="scores[row.id]"
++                  :min="0" :max="100"
++                  :disabled="gradeTypes[row.id]==='等级制'"
++                  placeholder="分数"
++                  class="flex-1"
++                  size="small"
++                  controls-position="right"
++                />
++                <el-tag v-if="gradeTypes[row.id]==='百分制' && scores[row.id] !== undefined && scores[row.id] !== null"
++                  :type="levelTagType(scores[row.id])" size="small" effect="dark" class="whitespace-nowrap">
++                  {{ previewLevel(scores[row.id]) }}
++                </el-tag>
++                <el-tag v-else-if="gradeTypes[row.id]==='等级制' && gradeLevels[row.id]"
++                  :type="levelTagTypeForLevel(gradeLevels[row.id])" size="small" effect="dark">
++                  {{ gradeLevels[row.id] }}
++                </el-tag>
++              </div>
+             </template>
+           </el-table-column>
+           <el-table-column label="备注" width="140">
+@@ -87,7 +94,10 @@
+           </el-table-column>
+           <el-table-column label="操作" width="80" fixed="right">
+             <template #default="{row}">
+-              <el-button size="small" type="primary" @click="doSubmitSingle(row)" :loading="submittingId === row.id" :disabled="submitting">录入</el-button>
++              <el-button size="small" :type="row.graded ? 'warning' : 'primary'"
++                @click="doSubmitSingle(row)" :loading="submittingId === row.id" :disabled="submitting">
++                {{ row.graded ? '更新' : '录入' }}
++              </el-button>
+             </template>
+           </el-table-column>
+         </el-table>
+@@ -98,9 +108,12 @@
+ 
+ <script setup lang="ts">
+ import { ref, reactive, computed, onMounted } from 'vue'
+-import { getTeacherCourses, getCourseStudents, inputGrade } from '@/api/edu'
++import { useRoute } from 'vue-router'
++import { getTeacherCourses, getCourseStudents, inputGrade, getCourseGrades, updateGrade } from '@/api/edu'
+ import { ElMessage } from 'element-plus'
+ 
++const route = useRoute()
++
+ const courses = ref<any[]>([])
+ const selectedCourseId = ref<number | null>(null)
+ const students = ref<any[]>([])
+@@ -116,6 +129,9 @@ const gradeLevels = reactive<Record<number, string>>({})
+ const remarks = reactive<Record<number, string>>({})
+ const selectedClassFilter = ref('')
+ 
++// Map of studentId -> existing grade record (for edit vs create decision)
++const gradeMap = ref<Record<number, any>>({})
++
+ const classOptions = computed(() => {
+   const names = new Set(students.value.map((s: any) => s.studentClassName).filter(Boolean))
+   return Array.from(names).sort()
+@@ -126,6 +142,32 @@ const filteredStudents = computed(() => {
+   return students.value.filter((s: any) => s.studentClassName === selectedClassFilter.value)
+ })
+ 
++function previewLevel(score: number): string {
++  if (score >= 90) return '优秀'
++  if (score >= 80) return '良好'
++  if (score >= 70) return '中等'
++  if (score >= 60) return '及格'
++  return '不及格'
++}
++
++function levelTagType(score: number): 'success' | 'primary' | 'warning' | 'danger' {
++  if (score >= 90) return 'success'
++  if (score >= 80) return 'primary'
++  if (score >= 70) return 'warning'
++  if (score >= 60) return 'warning'
++  return 'danger'
++}
++
++function levelTagTypeForLevel(level: string): 'success' | 'primary' | 'warning' | 'danger' {
++  switch (level) {
++    case '优': return 'success'
++    case '良': return 'primary'
++    case '中': return 'warning'
++    case '及格': return 'warning'
++    default: return 'danger'
++  }
++}
++
+ async function fetchCourses() {
+   loading.value = true
+   try {
+@@ -138,6 +180,20 @@ async function fetchCourses() {
+   }
+ }
+ 
++async function loadGrades() {
++  if (!selectedCourseId.value) return
++  try {
++    const gradeRes = await getCourseGrades(selectedCourseId.value)
++    const existingGrades = gradeRes.data || []
++    gradeMap.value = {}
++    existingGrades.forEach((g: any) => {
++      gradeMap.value[g.studentId] = g
++    })
++  } catch {
++    // silently ignore — grades may not exist yet
++  }
++}
++
+ async function onCourseChange() {
+   if (!selectedCourseId.value) {
+     students.value = []
+@@ -146,25 +202,37 @@ async function onCourseChange() {
+   selectedClassFilter.value = ''
+   studentsLoading.value = true
+   try {
+-    const r = await getCourseStudents(selectedCourseId.value)
+-    students.value = r.data || []
+-    students.value.forEach(s => {
+-      scores[s.id] = 0
+-      gradeTypes[s.id] = '百分制'
+-      gradeLevels[s.id] = '优'
+-      remarks[s.id] = ''
++    const [stuRes] = await Promise.all([
++      getCourseStudents(selectedCourseId.value),
++      loadGrades()
++    ])
++    students.value = stuRes.data || []
++    students.value.forEach((s: any) => {
++      const existing = gradeMap.value[s.studentId]
++      if (existing) {
++        scores[s.id] = existing.score ?? 0
++        gradeTypes[s.id] = existing.gradeType || '百分制'
++        gradeLevels[s.id] = existing.gradeLevel || ''
++        remarks[s.id] = existing.remark || ''
++        s.graded = true
++      } else {
++        scores[s.id] = 0
++        gradeTypes[s.id] = '百分制'
++        gradeLevels[s.id] = '优'
++        remarks[s.id] = ''
++      }
+     })
+   } catch {
+-    ElMessage.error('获取学生列表失败')
++    ElMessage.error('获取数据失败')
+   } finally {
+     studentsLoading.value = false
+   }
+ }
+ 
+-async function doSubmitSingle(student: any, silent = false) {
++async function doSubmitSingle(student: any, silent = false, reloadAfter = true) {
+   if (scores[student.id] === undefined && gradeTypes[student.id] !== '等级制') {
+     if (!silent) ElMessage.warning('请输入分数')
+-    return
++    return false
+   }
+   submittingId.value = student.id
+   try {
+@@ -181,12 +249,20 @@ async function doSubmitSingle(student: any, silent = false) {
+       const levelMap: Record<string, number> = { '优': 90, '良': 80, '中': 70, '及格': 60, '不及格': 50 }
+       data.score = levelMap[gradeLevels[student.id]] || 0
+     }
+-    await inputGrade(data)
++
++    const existing = gradeMap.value[student.studentId]
++    if (existing && existing.id) {
++      await updateGrade(existing.id, data)
++    } else {
++      await inputGrade(data)
++    }
+     student.graded = true
+-    if (!silent) ElMessage.success(`${student.studentName} 成绩录入成功`)
++    if (!silent) ElMessage.success(`${student.studentName} 成绩${existing ? '更新' : '录入'}成功`)
++
++    if (reloadAfter) await loadGrades()
+     return true
+-  } catch {
+-    if (!silent) ElMessage.error(`${student.studentName} 录入失败`)
++  } catch (e: any) {
++    if (!silent) ElMessage.error(e?.response?.data?.message || `${student.studentName} 操作失败`)
+     return false
+   } finally {
+     submittingId.value = null
+@@ -198,7 +274,7 @@ async function submitAllGrades() {
+   const list = filteredStudents.value
+   let success = 0, fail = 0
+   for (let i = 0; i < list.length; i++) {
+-    const ok = await doSubmitSingle(list[i], true)
++    const ok = await doSubmitSingle(list[i], true, false)
+     if (ok) success++; else fail++
+     ElMessage({
+       message: `录入进度: ${i + 1}/${list.length} (成功 ${success}, 失败 ${fail})`,
+@@ -206,6 +282,7 @@ async function submitAllGrades() {
+       duration: 1500
+     })
+   }
++  await loadGrades()
+   submitting.value = false
+   if (fail === 0) {
+     ElMessage.success(`批量录入完成，共 ${success} 人`)
+@@ -213,5 +290,13 @@ async function submitAllGrades() {
+     ElMessage.warning(`录入完成: ${success} 成功, ${fail} 失败`)
+   }
+ }
+-onMounted(fetchCourses)
++
++onMounted(async () => {
++  await fetchCourses()
++  const courseId = route.query.courseId
++  if (courseId) {
++    selectedCourseId.value = Number(courseId)
++    await onCourseChange()
++  }
++})
+ </script>
+\ No newline at end of file
+diff --git a/frontend/src/views/edu/GradeQuery.vue b/frontend/src/views/edu/GradeQuery.vue
+index 54375c3..21c129e 100644
+--- a/frontend/src/views/edu/GradeQuery.vue
++++ b/frontend/src/views/edu/GradeQuery.vue
+@@ -5,6 +5,13 @@
+       <p class="text-sm text-mist mt-1">查看全部课程成绩与学业分析</p>
+     </div>
+ 
++    <div class="bg-white rounded-xl border border-soft p-4 mb-6 flex items-center gap-4">
++      <span class="text-sm text-ash">选择学期：</span>
++      <el-select v-model="selectedSemester" placeholder="全部学期" class="w-60" @change="onSemesterChange" clearable>
++        <el-option v-for="s in semesters" :key="s" :label="s" :value="s" />
++      </el-select>
++    </div>
++
+     <div v-if="loading" class="flex flex-col items-center justify-center py-24">
+       <div class="relative w-16 h-16">
+         <div class="absolute inset-0 rounded-full border-4 border-soft"></div>
+@@ -154,13 +161,18 @@
+ 
+ <script setup lang="ts">
+ import { ref, computed, onMounted } from 'vue'
+-import { getMyGrades } from '@/api/edu'
++import { getMyGrades, getSemesters, getTranscript } from '@/api/edu'
+ 
+ const grades = ref<any[]>([])
+ const loading = ref(false)
+ const openSemesters = ref<Set<string>>(new Set())
++const semesters = ref<string[]>([])
++const selectedSemester = ref('')
++const transcript = ref<any>(null)
++let fetchGen = 0 // generation counter to prevent stale responses
+ 
+ const gpa = computed(() => {
++  if (transcript.value?.overallGpa != null) return transcript.value.overallGpa
+   if (grades.value.length === 0) return 0
+   const points = grades.value.reduce((s: number, g: any) => {
+     const score = g.score || 0
+@@ -174,7 +186,7 @@ const gpa = computed(() => {
+ })
+ 
+ const totalCredits = computed(() => {
+-  return grades.value.reduce((s: number, g: any) => s + (g.credit || 0), 0)
++  return transcript.value?.totalCredits ?? grades.value.reduce((s: number, g: any) => s + (g.credit || 0), 0)
+ })
+ 
+ const totalCourses = computed(() => grades.value.length)
+@@ -344,10 +356,31 @@ function shortSemester(sem: string) {
+   return sem.substring(0, 10) + '...'
+ }
+ 
+-onMounted(async () => {
++async function onSemesterChange() {
++  const gen = ++fetchGen
+   loading.value = true
+   try {
+-    const r = await getMyGrades()
++    await fetchTranscript()
++    await fetchGrades(gen)
++  } finally {
++    if (gen === fetchGen) loading.value = false
++  }
++}
++
++async function fetchSemesters() {
++  try {
++    const r = await getSemesters()
++    semesters.value = (r.data || []).map((s: any) => s.name || s.semester || '')
++  } catch {
++    // ignore
++  }
++}
++
++async function fetchGrades(gen?: number) {
++  if (gen !== undefined && gen !== fetchGen) return // stale
++  try {
++    const r = await getMyGrades(selectedSemester.value || undefined)
++    if (gen !== undefined && gen !== fetchGen) return // stale
+     grades.value = r.data || []
+     const sorted = Object.keys(semesterGroups.value).sort().reverse()
+     if (sorted.length > 0) {
+@@ -358,6 +391,25 @@ onMounted(async () => {
+     }
+   } catch {
+     grades.value = []
++  }
++}
++
++async function fetchTranscript() {
++  if (selectedSemester.value) return // semester filter — skip transcript
++  try {
++    const r = await getTranscript()
++    transcript.value = r.data || null
++  } catch {
++    transcript.value = null
++  }
++}
++
++onMounted(async () => {
++  await fetchSemesters()
++  await fetchTranscript()
++  loading.value = true
++  try {
++    await fetchGrades()
+   } finally {
+     loading.value = false
+   }
+diff --git a/frontend/src/views/edu/TeacherTeaching.vue b/frontend/src/views/edu/TeacherTeaching.vue
+index 072287e..8c26a5d 100644
+--- a/frontend/src/views/edu/TeacherTeaching.vue
++++ b/frontend/src/views/edu/TeacherTeaching.vue
+@@ -199,20 +199,6 @@ async function fetchSemesters() {
+   } catch {}
+ }
+ 
+-async function selectCourse(course: any) {
+-  selectedCourseId.value = course.id
+-  selectedClass.value = ''
+-  studentsLoading.value = true
+-  try {
+-    const r = await getCourseStudents(course.id)
+-    students.value = r.data || []
+-  } catch {
+-    ElMessage.error('获取学生名单失败')
+-  } finally {
+-    studentsLoading.value = false
+-  }
+-}
+-
+ function filterCourses() {}
+ 
+ async function fetchAllClasses() {
+@@ -232,6 +218,20 @@ async function expandCourse(courseId: number) {
+     const r = await getCourseClasses(courseId)
+     courseClassMap.value[courseId] = r.data || []
+   }
++  // 选修课无班级关联，直接加载学生列表
++  if (!courseClassMap.value[courseId]?.length) {
++    selectedCourseId.value = courseId
++    selectedClass.value = ''
++    studentsLoading.value = true
++    try {
++      const r = await getCourseStudents(courseId)
++      students.value = r.data || []
++    } catch {
++      ElMessage.error('获取学生名单失败')
++    } finally {
++      studentsLoading.value = false
++    }
++  }
+ }
+ 
+ function getClassName(classId: number) {

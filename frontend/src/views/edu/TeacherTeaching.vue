@@ -53,7 +53,7 @@
               <span class="text-sm font-medium text-ink">{{ getClassName(cc.classId) }}</span>
               <div class="flex gap-2">
                 <el-button size="small" @click.stop="viewClassStudents(c.id, cc.classId)">查看学生</el-button>
-                <el-button size="small" type="primary" @click.stop="goCheckIn(c.id, cc.classId)">发起签到</el-button>
+                
               </div>
             </div>
           </div>
@@ -239,9 +239,7 @@ function getClassName(classId: number) {
   return c ? c.className : '班级' + classId
 }
 
-function goCheckIn(courseId: number, classId: number) {
-  router.push('/growth/checkin')
-}
+
 
 async function viewClassStudents(courseId: number, classId: number) {
   selectedCourseId.value = courseId

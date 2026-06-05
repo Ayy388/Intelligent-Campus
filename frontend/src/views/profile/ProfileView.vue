@@ -81,13 +81,15 @@ const avatarLetter = computed(() => (userStore.userInfo?.realName || userStore.u
 
 const avatarUrl = computed(() => userStore.userInfo?.avatar || '')
 
+const uploading = ref(false)
+
 const form = reactive({
   email: ''
 })
 
 const saving = ref(false)
 
-function formatDate(dateStr: string) {
+function formatDate(dateStr: string | undefined | null) {
   if (!dateStr) return '未知'
   return dateStr.substring(0, 10)
 }

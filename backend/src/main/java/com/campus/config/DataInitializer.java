@@ -106,16 +106,19 @@ public class DataInitializer implements CommandLineRunner {
                 teacher_id BIGINT NOT NULL,
                 score DECIMAL(5,2),
                 grade_type VARCHAR(20) DEFAULT '百分制',
+                grade_level VARCHAR(10),
                 semester VARCHAR(20) NOT NULL,
                 remark VARCHAR(255),
                 create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (student_id) REFERENCES sys_user(id),
                 FOREIGN KEY (course_id) REFERENCES edu_course(id),
-                FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
+                FOREIGN KEY (teacher_id) REFERENCES sys_user(id),
+                UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)
             )
         """);
 
         try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD COLUMN grade_level VARCHAR(10)"); } catch (Exception ignored) {}
+        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)"); } catch (Exception ignored) {}
 
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS admin_notification (
@@ -339,47 +342,6 @@ public class DataInitializer implements CommandLineRunner {
         """);
 
         jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS growth_profile (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                student_id BIGINT NOT NULL UNIQUE,
-                awards TEXT,
-                experiences TEXT,
-                evaluation TEXT,
-                gpa DECIMAL(4,2),
-                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_id) REFERENCES sys_user(id)
-            )
-        """);
-
-        jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS growth_checkin (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                teacher_id BIGINT NOT NULL,
-                title VARCHAR(200) NOT NULL,
-                checkin_type VARCHAR(50) DEFAULT 'course',
-                start_time TIMESTAMP NOT NULL,
-                end_time TIMESTAMP NOT NULL,
-                total_count INT DEFAULT 0,
-                checked_count INT DEFAULT 0,
-                status TINYINT DEFAULT 1,
-                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (teacher_id) REFERENCES sys_user(id)
-            )
-        """);
-
-        jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS growth_checkin_record (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                checkin_id BIGINT NOT NULL,
-                student_id BIGINT NOT NULL,
-                checkin_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (checkin_id) REFERENCES growth_checkin(id),
-                FOREIGN KEY (student_id) REFERENCES sys_user(id)
-            )
-        """);
-
-        jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS user_todo (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 user_id BIGINT NOT NULL,
@@ -421,12 +383,6 @@ public class DataInitializer implements CommandLineRunner {
         } catch (Exception ignored) {}
         try {
             jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN end_week INT DEFAULT 20");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE growth_checkin ADD COLUMN course_id BIGINT");
-        } catch (Exception ignored) {}
-        try {
-            jdbcTemplate.execute("ALTER TABLE growth_checkin ADD COLUMN class_id BIGINT");
         } catch (Exception ignored) {}
         try {
             jdbcTemplate.execute("ALTER TABLE edu_course ADD COLUMN course_type VARCHAR(20) DEFAULT 'required'");
@@ -687,7 +643,6 @@ public class DataInitializer implements CommandLineRunner {
 
     private void seedComprehensiveData(String pwd) {
         // 清理旧种子数据（保留 run() 方法创建的初始用户：s001, t001, c001 等）
-        jdbcTemplate.update("DELETE FROM growth_profile");
         jdbcTemplate.update("DELETE FROM edu_grade");
         jdbcTemplate.update("DELETE FROM edu_course_selection");
         jdbcTemplate.update("DELETE FROM edu_course_class");
@@ -707,8 +662,6 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM club_info");
         jdbcTemplate.update("DELETE FROM ai_message");
         jdbcTemplate.update("DELETE FROM ai_conversation");
-        jdbcTemplate.update("DELETE FROM growth_checkin_record");
-        jdbcTemplate.update("DELETE FROM growth_checkin");
         jdbcTemplate.update("DELETE FROM message_detail");
         jdbcTemplate.update("DELETE FROM message_conversation");
 
@@ -854,8 +807,6 @@ public class DataInitializer implements CommandLineRunner {
                     (long)(i % 2), 1);
 
                 Long userId = jdbcTemplate.queryForObject("SELECT id FROM sys_user WHERE username=?", Long.class, sid);
-                jdbcTemplate.update("INSERT IGNORE INTO growth_profile (student_id, gpa) VALUES (?,?)",
-                    userId, 2.0 + (Math.random() * 2.0));
             }
         }
 

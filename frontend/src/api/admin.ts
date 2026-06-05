@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export function getNotifications(params: any) {
+export function getNotifications(params?: Record<string, any>) {
   return request.get('/admin/notifications', { params })
 }
 
@@ -8,11 +8,11 @@ export function getNotification(id: number) {
   return request.get(`/admin/notifications/${id}`)
 }
 
-export function addNotification(data: any) {
+export function addNotification(data: Record<string, any>) {
   return request.post('/admin/notifications', data)
 }
 
-export function updateNotification(id: number, data: any) {
+export function updateNotification(id: number, data: Record<string, any>) {
   return request.put(`/admin/notifications/${id}`, data)
 }
 
@@ -28,7 +28,7 @@ export function markNotificationRead(id: number) {
   return request.post(`/admin/notifications/${id}/read`)
 }
 
-export function getLeaves(params: any) {
+export function getLeaves(params?: Record<string, any>) {
   return request.get('/admin/leaves', { params })
 }
 
@@ -36,7 +36,7 @@ export function getLeave(id: number) {
   return request.get(`/admin/leaves/${id}`)
 }
 
-export function applyLeave(data: any) {
+export function applyLeave(data: Record<string, any>) {
   return request.post('/admin/leaves', data)
 }
 

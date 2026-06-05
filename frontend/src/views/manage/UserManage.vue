@@ -66,23 +66,24 @@ import { useRoute } from 'vue-router'
 import { getUsers, createUser, updateUser, toggleUserStatus, getAllDepartments, getAllClasses, getClass } from '@/api/sys'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import type { User, Department, Major, ClassInfo } from '@/types'
 
 const route = useRoute()
 
 const ROLE_MAP: Record<string, number> = { student: 1, teacher: 2, admin: 3, counselor: 4 }
 const ROLE_NAME: Record<string, string> = { all: '用户', student: '学生', teacher: '教师', counselor: '辅导员', admin: '管理员' }
 
-const tableData = ref<any[]>([])
+const tableData = ref<User[]>([])
 const loading = ref(false)
 const page = ref(1)
 const total = ref(0)
 const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
-const departments = ref<any[]>([])
-const classes = ref<any[]>([])
-const majors = ref<any[]>([])
-const counselors = ref<any[]>([])
-const allUsers = ref<any[]>([])
+const departments = ref<Department[]>([])
+const classes = ref<ClassInfo[]>([])
+const majors = ref<Major[]>([])
+const counselors = ref<User[]>([])
+const allUsers = ref<User[]>([])
 const activeTab = ref('all')
 
 const roleLocked = computed(() => activeTab.value !== 'all')
@@ -120,7 +121,7 @@ async function fetchCounselors() {
   try {
     const r = await getUsers({ page: 1, size: 999 })
     allUsers.value = r.data.records || []
-    counselors.value = allUsers.value.filter((u: any) => u.roleId === 4 || u.roleName === '辅导员')
+    counselors.value = allUsers.value.filter((u: User) => u.roleId === 4 || u.roleName === '辅导员')
   } catch { counselors.value = [] }
 }
 
@@ -136,7 +137,7 @@ function onTabChange() {
   fetch()
 }
 
-function showDialog(row?: any) {
+function showDialog(row?: User) {
   editId.value = row?.id || null
   if (row) {
     Object.assign(form, { ...row, password: '' })
@@ -150,7 +151,7 @@ function showDialog(row?: any) {
 async function save() {
   const data = { ...form }
   if (editId.value) {
-    if (!data.password) delete data.password
+    if (!data.password) data.password = undefined as any
     await updateUser(editId.value, data)
   } else {
     await createUser(data)
@@ -158,7 +159,7 @@ async function save() {
   ElMessage.success('保存成功'); dialogVisible.value = false; fetch()
 }
 
-async function toggleStatus(row: any) { await toggleUserStatus(row.id, row.status ? 0 : 1); ElMessage.success('操作成功'); fetch() }
+async function toggleStatus(row: User) { await toggleUserStatus(row.id, row.status ? 0 : 1); ElMessage.success('操作成功'); fetch() }
 
 watch(() => form.classId, async (val) => {
   if (val && (activeTab.value === 'student' || activeTab.value === 'all')) {

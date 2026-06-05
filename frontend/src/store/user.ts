@@ -1,25 +1,27 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login as loginApi, getCurrentUser } from '@/api/auth'
+import type { User, LoginResponse } from '@/types'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref<any>(null)
+  const userInfo = ref<User | null>(null)
   const role = ref(localStorage.getItem('role') || '')
 
   async function login(username: string, password: string) {
     const res = await loginApi(username, password)
-    token.value = res.data.token
-    role.value = res.data.role
-    localStorage.setItem('token', res.data.token)
-    localStorage.setItem('role', res.data.role)
+    const data = res.data as LoginResponse
+    token.value = data.token
+    role.value = data.role
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('role', data.role)
     await fetchUserInfo()
   }
 
   async function fetchUserInfo() {
     if (!token.value) return
     const res = await getCurrentUser()
-    userInfo.value = res.data
+    userInfo.value = res.data as User
     if (!role.value && res.data.roleName) role.value = res.data.roleName
   }
 

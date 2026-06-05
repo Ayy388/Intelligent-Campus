@@ -118,11 +118,12 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { getLostFound, addLostFound, updateLostFoundStatus, deleteLostFound } from '@/api/life'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { LostFound } from '@/types'
 
 const userStore = useUserStore()
 const uploadHeaders = { Authorization: `Bearer ${userStore.token}` }
 
-const items = ref<any[]>([])
+const items = ref<LostFound[]>([])
 const page = ref(1)
 const total = ref(0)
 const curType = ref<number | undefined>(undefined)
@@ -135,7 +136,7 @@ const imageUrls = ref<string[]>([])
 const uploadRef = ref<any>()
 
 const detailVisible = ref(false)
-const detailItem = ref<any>(null)
+const detailItem = ref<LostFound | null>(null)
 const isOwner = computed(() => detailItem.value && userStore.userInfo?.id === detailItem.value.userId)
 const imageCount = computed(() => detailItem.value?.images ? detailItem.value.images.split(',').length : 0)
 const loading = ref(false)

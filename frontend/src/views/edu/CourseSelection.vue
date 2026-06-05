@@ -99,11 +99,12 @@
 import { ref, onMounted } from 'vue'
 import { getAvailableCourses, enrollCourse } from '@/api/edu'
 import { ElMessage } from 'element-plus'
+import type { Course } from '@/types'
 
-const courses = ref<any[]>([])
+const courses = ref<Course[]>([])
 const loading = ref(false)
 
-function progressClass(course: any) {
+function progressClass(course: Course) {
   const rate = course.capacity ? (course.enrolled || 0) / course.capacity : 0
   if (rate >= 1) return 'bg-gradient-to-r from-red-400 to-rose-500'
   if (rate >= 0.8) return 'bg-gradient-to-r from-amber-400 to-orange-500'
@@ -122,7 +123,7 @@ async function fetchData() {
   }
 }
 
-async function doEnroll(course: any) {
+async function doEnroll(course: Course) {
   try {
     await enrollCourse(course.id)
     ElMessage.success('报名成功')

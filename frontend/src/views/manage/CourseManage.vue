@@ -129,14 +129,15 @@ import { getCourses, addCourse, updateCourse, deleteCourse, importCourses, getSe
 import { getAllClasses } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
+import type { Course, Semester, ClassInfo, User } from '@/types'
 
-const tableData = ref([])
+const tableData = ref<Course[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
-const teachers = ref<any[]>([])
-const semesters = ref<any[]>([])
-const allClasses = ref<any[]>([])
+const teachers = ref<User[]>([])
+const semesters = ref<Semester[]>([])
+const allClasses = ref<ClassInfo[]>([])
 const selectedClasses = ref<number[]>([])
 const assignDialogVisible = ref(false)
 const assignCourseId = ref<number | null>(null)
@@ -198,7 +199,7 @@ async function fetch() {
 
 async function fetchTeachers() {
   const r = await request.get('/sys/users', { params: { page: 1, size: 200 } })
-  teachers.value = (r.data.records || []).filter((u: any) => u.roleName === '教师')
+  teachers.value = (r.data.records || []).filter((u: User) => u.roleName === '教师')
 }
 
 async function fetchSemesters() {
@@ -215,7 +216,7 @@ async function fetchAllClasses() {
   } catch {}
 }
 
-function showDialog(row?: any) {
+function showDialog(row?: Course) {
   editId.value = row?.id || null
   selectedClasses.value = []
   Object.assign(form, row ? { ...row, courseType: row.courseType || 'required', minStudents: row.minStudents || 1, enrollEnd: row.enrollEnd || '' } : {

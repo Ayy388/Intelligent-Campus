@@ -5,6 +5,8 @@ import com.campus.common.Result;
 import com.campus.module.todo.entity.Todo;
 import com.campus.module.todo.service.TodoService;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/todos")
 @RequiredArgsConstructor
+@Tag(name = "待办事项", description = "个人待办事项管理")
 public class TodoController {
     private final TodoService todoService;
 
@@ -19,6 +22,7 @@ public class TodoController {
         return Long.parseLong(((Claims) auth.getDetails()).getSubject());
     }
 
+    @Operation(summary = "分页查询待办事项")
     @GetMapping
     public Result<PageResult<Todo>> list(Authentication auth,
             @RequestParam(defaultValue = "1") int page,
@@ -34,16 +38,19 @@ public class TodoController {
         return Result.ok(pr);
     }
 
+    @Operation(summary = "创建待办事项")
     @PostMapping
     public Result<Todo> create(Authentication auth, @RequestBody Todo todo) {
         return Result.ok(todoService.createTodo(getUserId(auth), todo));
     }
 
+    @Operation(summary = "更新待办事项")
     @PutMapping("/{id}")
     public Result<Todo> update(Authentication auth, @PathVariable Long id, @RequestBody Todo todo) {
         return Result.ok(todoService.updateTodo(id, getUserId(auth), todo));
     }
 
+    @Operation(summary = "删除待办事项")
     @DeleteMapping("/{id}")
     public Result<Void> delete(Authentication auth, @PathVariable Long id) {
         todoService.deleteTodo(id, getUserId(auth));

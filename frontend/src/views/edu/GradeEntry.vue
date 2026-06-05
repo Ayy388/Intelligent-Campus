@@ -64,20 +64,27 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="分数" width="120">
+          <el-table-column label="分数/等级" width="190">
             <template #default="{row}">
-              <el-input-number v-model="scores[row.id]" :min="0" :max="100" :disabled="gradeTypes[row.id]==='等级制'" placeholder="分数" class="w-full" />
-            </template>
-          </el-table-column>
-          <el-table-column label="等级" width="100">
-            <template #default="{row}">
-              <el-select v-model="gradeLevels[row.id]" class="w-full" :disabled="gradeTypes[row.id]!=='等级制'">
-                <el-option label="优" value="优" />
-                <el-option label="良" value="良" />
-                <el-option label="中" value="中" />
-                <el-option label="及格" value="及格" />
-                <el-option label="不及格" value="不及格" />
-              </el-select>
+              <div class="flex items-center gap-2">
+                <el-input-number
+                  v-model="scores[row.id]"
+                  :min="0" :max="100"
+                  :disabled="gradeTypes[row.id]==='等级制'"
+                  placeholder="分数"
+                  class="flex-1"
+                  size="small"
+                  controls-position="right"
+                />
+                <el-tag v-if="gradeTypes[row.id]==='百分制' && scores[row.id] !== undefined && scores[row.id] !== null"
+                  :type="levelTagType(scores[row.id])" size="small" effect="dark" class="whitespace-nowrap">
+                  {{ previewLevel(scores[row.id]) }}
+                </el-tag>
+                <el-tag v-else-if="gradeTypes[row.id]==='等级制' && gradeLevels[row.id]"
+                  :type="levelTagTypeForLevel(gradeLevels[row.id])" size="small" effect="dark">
+                  {{ gradeLevels[row.id] }}
+                </el-tag>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="备注" width="140">
@@ -87,7 +94,10 @@
           </el-table-column>
           <el-table-column label="操作" width="80" fixed="right">
             <template #default="{row}">
-              <el-button size="small" type="primary" @click="doSubmitSingle(row)" :loading="submittingId === row.id" :disabled="submitting">录入</el-button>
+              <el-button size="small" :type="row.graded ? 'warning' : 'primary'"
+                @click="doSubmitSingle(row)" :loading="submittingId === row.id" :disabled="submitting">
+                {{ row.graded ? '更新' : '录入' }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -98,12 +108,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { getTeacherCourses, getCourseStudents, inputGrade } from '@/api/edu'
+import { useRoute } from 'vue-router'
+import { getTeacherCourses, getCourseStudents, inputGrade, getCourseGrades, updateGrade } from '@/api/edu'
 import { ElMessage } from 'element-plus'
+import { previewLevel, levelTagType, levelTagTypeForLevel } from '@/utils/labels'
+import type { Course, CourseSelection, Grade } from '@/types'
 
-const courses = ref<any[]>([])
+const route = useRoute()
+
+const courses = ref<Course[]>([])
 const selectedCourseId = ref<number | null>(null)
-const students = ref<any[]>([])
+const students = ref<CourseSelection[]>([])
 
 const loading = ref(false)
 const studentsLoading = ref(false)
@@ -116,14 +131,17 @@ const gradeLevels = reactive<Record<number, string>>({})
 const remarks = reactive<Record<number, string>>({})
 const selectedClassFilter = ref('')
 
+// Map of studentId -> existing grade record (for edit vs create decision)
+const gradeMap = ref<Record<number, Grade>>({})
+
 const classOptions = computed(() => {
-  const names = new Set(students.value.map((s: any) => s.studentClassName).filter(Boolean))
+  const names = new Set(students.value.map((s: CourseSelection) => s.studentClassName).filter(Boolean))
   return Array.from(names).sort()
 })
 
 const filteredStudents = computed(() => {
   if (!selectedClassFilter.value) return students.value
-  return students.value.filter((s: any) => s.studentClassName === selectedClassFilter.value)
+  return students.value.filter((s: CourseSelection) => s.studentClassName === selectedClassFilter.value)
 })
 
 async function fetchCourses() {
@@ -138,6 +156,20 @@ async function fetchCourses() {
   }
 }
 
+async function loadGrades() {
+  if (!selectedCourseId.value) return
+  try {
+    const gradeRes = await getCourseGrades(selectedCourseId.value)
+    const existingGrades = gradeRes.data || []
+    gradeMap.value = {}
+    existingGrades.forEach((g: Grade) => {
+      gradeMap.value[g.studentId] = g
+    })
+  } catch {
+    // silently ignore — grades may not exist yet
+  }
+}
+
 async function onCourseChange() {
   if (!selectedCourseId.value) {
     students.value = []
@@ -146,29 +178,41 @@ async function onCourseChange() {
   selectedClassFilter.value = ''
   studentsLoading.value = true
   try {
-    const r = await getCourseStudents(selectedCourseId.value)
-    students.value = r.data || []
-    students.value.forEach(s => {
-      scores[s.id] = 0
-      gradeTypes[s.id] = '百分制'
-      gradeLevels[s.id] = '优'
-      remarks[s.id] = ''
+    const [stuRes] = await Promise.all([
+      getCourseStudents(selectedCourseId.value),
+      loadGrades()
+    ])
+    students.value = stuRes.data || []
+    students.value.forEach((s: CourseSelection) => {
+      const existing = gradeMap.value[s.studentId]
+      if (existing) {
+        scores[s.id] = existing.score ?? 0
+        gradeTypes[s.id] = existing.gradeType || '百分制'
+        gradeLevels[s.id] = existing.gradeLevel || ''
+        remarks[s.id] = existing.remark || ''
+        s.graded = true
+      } else {
+        scores[s.id] = 0
+        gradeTypes[s.id] = '百分制'
+        gradeLevels[s.id] = '优'
+        remarks[s.id] = ''
+      }
     })
   } catch {
-    ElMessage.error('获取学生列表失败')
+    ElMessage.error('获取数据失败')
   } finally {
     studentsLoading.value = false
   }
 }
 
-async function doSubmitSingle(student: any, silent = false) {
+async function doSubmitSingle(student: CourseSelection, silent = false, reloadAfter = true) {
   if (scores[student.id] === undefined && gradeTypes[student.id] !== '等级制') {
     if (!silent) ElMessage.warning('请输入分数')
-    return
+    return false
   }
   submittingId.value = student.id
   try {
-    const data: any = {
+    const data: Record<string, any> = {
       studentId: student.studentId,
       courseId: selectedCourseId.value,
       semester: student.semester,
@@ -181,12 +225,20 @@ async function doSubmitSingle(student: any, silent = false) {
       const levelMap: Record<string, number> = { '优': 90, '良': 80, '中': 70, '及格': 60, '不及格': 50 }
       data.score = levelMap[gradeLevels[student.id]] || 0
     }
-    await inputGrade(data)
+
+    const existing = gradeMap.value[student.studentId]
+    if (existing && existing.id) {
+      await updateGrade(existing.id, data)
+    } else {
+      await inputGrade(data)
+    }
     student.graded = true
-    if (!silent) ElMessage.success(`${student.studentName} 成绩录入成功`)
+    if (!silent) ElMessage.success(`${student.studentName} 成绩${existing ? '更新' : '录入'}成功`)
+
+    if (reloadAfter) await loadGrades()
     return true
-  } catch {
-    if (!silent) ElMessage.error(`${student.studentName} 录入失败`)
+  } catch (e: any) {
+    if (!silent) ElMessage.error(e?.response?.data?.message || `${student.studentName} 操作失败`)
     return false
   } finally {
     submittingId.value = null
@@ -198,7 +250,7 @@ async function submitAllGrades() {
   const list = filteredStudents.value
   let success = 0, fail = 0
   for (let i = 0; i < list.length; i++) {
-    const ok = await doSubmitSingle(list[i], true)
+    const ok = await doSubmitSingle(list[i], true, false)
     if (ok) success++; else fail++
     ElMessage({
       message: `录入进度: ${i + 1}/${list.length} (成功 ${success}, 失败 ${fail})`,
@@ -206,6 +258,7 @@ async function submitAllGrades() {
       duration: 1500
     })
   }
+  await loadGrades()
   submitting.value = false
   if (fail === 0) {
     ElMessage.success(`批量录入完成，共 ${success} 人`)
@@ -213,5 +266,13 @@ async function submitAllGrades() {
     ElMessage.warning(`录入完成: ${success} 成功, ${fail} 失败`)
   }
 }
-onMounted(fetchCourses)
+
+onMounted(async () => {
+  await fetchCourses()
+  const courseId = route.query.courseId
+  if (courseId) {
+    selectedCourseId.value = Number(courseId)
+    await onCourseChange()
+  }
+})
 </script>

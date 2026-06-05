@@ -13,18 +13,23 @@ import com.campus.module.edu.mapper.CourseMapper;
 import com.campus.module.edu.mapper.CourseSelectionMapper;
 import com.campus.module.edu.mapper.GradeMapper;
 import com.campus.module.edu.service.CourseService;
+import com.campus.module.edu.service.ScheduleConflictDetector;
 import com.campus.module.sys.entity.SysClass;
 import com.campus.module.sys.entity.SysUser;
 import com.campus.module.sys.mapper.SysClassMapper;
 import com.campus.module.sys.mapper.SysDepartmentMapper;
 import com.campus.module.sys.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +45,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public void confirmCourse(Long courseId, Long teacherId) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -51,6 +57,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @Cacheable(value = "courses", key = "#page + '-' + #size + '-' + (#keyword ?: '') + '-' + (#semester ?: '')")
     public Page<Course> pageWithTeacher(int page, int size, String keyword, String semester) {
         LambdaQueryWrapper<Course> w = new LambdaQueryWrapper<>();
         if (keyword != null && !keyword.isEmpty())
@@ -70,6 +77,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public CourseSelection selectCourse(Long studentId, Long courseId, String semester) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -95,6 +103,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public void dropCourse(Long selId, Long studentId) {
         CourseSelection sel = selMapper.selectById(selId);
         if (sel == null || !sel.getStudentId().equals(studentId))
@@ -152,7 +161,8 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             }
             Long gradeCnt = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
                     .eq(Grade::getStudentId, s.getStudentId())
-                    .eq(Grade::getCourseId, s.getCourseId()));
+                    .eq(Grade::getCourseId, s.getCourseId())
+                    .eq(Grade::getSemester, s.getSemester()));
             s.setGraded(gradeCnt > 0);
         }
         return list;
@@ -166,6 +176,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public void deleteCourse(Long courseId) {
         Long activeCount = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
                 .eq(CourseSelection::getCourseId, courseId)
@@ -180,61 +191,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         }
         jdbcTemplate.update("DELETE FROM edu_course_selection WHERE course_id = ?", courseId);
         jdbcTemplate.update("DELETE FROM edu_grade WHERE course_id = ?", courseId);
-        jdbcTemplate.update("DELETE FROM growth_checkin WHERE course_id = ?", courseId);
         jdbcTemplate.update("DELETE FROM edu_course WHERE id = ?", courseId);
-    }
-
-    @Override
-    @Transactional
-    public void inputGrade(Grade grade) {
-        if (grade.getScore() == null) throw new BusinessException("成绩不能为空");
-        if (grade.getScore().compareTo(java.math.BigDecimal.ZERO) < 0 || grade.getScore().compareTo(new java.math.BigDecimal("100")) > 0)
-            throw new BusinessException("分数必须在 0-100 之间");
-        if (grade.getTeacherId() == null) throw new BusinessException("教师信息缺失");
-        Course course = courseMapper.selectById(grade.getCourseId());
-        if (course == null) throw new BusinessException("课程不存在");
-        if (!course.getTeacherId().equals(grade.getTeacherId()))
-            throw new BusinessException("您不是该课程的授课教师");
-        Long selCnt = selMapper.selectCount(new LambdaQueryWrapper<CourseSelection>()
-                .eq(CourseSelection::getStudentId, grade.getStudentId())
-                .eq(CourseSelection::getCourseId, grade.getCourseId())
-                .eq(CourseSelection::getStatus, 1));
-        if (selCnt == 0) throw new BusinessException("该学生未选修此课程");
-        Long existCount = gradeMapper.selectCount(new LambdaQueryWrapper<Grade>()
-                .eq(Grade::getStudentId, grade.getStudentId())
-                .eq(Grade::getCourseId, grade.getCourseId()));
-        if (existCount > 0) throw new BusinessException("该学生该学期成绩已录入");
-        grade.setCreateTime(LocalDateTime.now());
-        gradeMapper.insert(grade);
-    }
-
-    @Override
-    public List<Grade> getStudentGrades(Long studentId) {
-        List<Grade> grades = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getStudentId, studentId));
-        for (Grade g : grades) {
-            Course course = courseMapper.selectById(g.getCourseId());
-            if (course != null) g.setCourseName(course.getCourseName());
-        }
-        return grades;
-    }
-
-    @Override
-    public List<Grade> getCourseGrades(Long courseId) {
-        List<Grade> list = gradeMapper.selectList(new LambdaQueryWrapper<Grade>().eq(Grade::getCourseId, courseId));
-        for (Grade g : list) {
-            if (g.getStudentId() != null) {
-                com.campus.module.sys.entity.SysUser student = userMapper.selectById(g.getStudentId());
-                if (student != null) {
-                    g.setStudentName(student.getRealName());
-                    g.setStudentUsername(student.getUsername());
-                }
-            }
-            if (g.getCourseId() != null) {
-                com.campus.module.edu.entity.Course course = courseMapper.selectById(g.getCourseId());
-                if (course != null) g.setCourseName(course.getCourseName());
-            }
-        }
-        return list;
     }
 
     @Override
@@ -291,6 +248,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
     @Override
     @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
     public void assignRequiredCourse(Long courseId, List<Long> classIds) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -362,6 +320,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @CacheEvict(value = "courses", allEntries = true)
     public void enrollElective(Long courseId, Long studentId) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -393,6 +352,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @CacheEvict(value = "courses", allEntries = true)
     public void confirmCourse(Long courseId) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -402,6 +362,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @CacheEvict(value = "courses", allEntries = true)
     public void cancelCourse(Long courseId) {
         Course course = courseMapper.selectById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -417,6 +378,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
     @Override
+    @CacheEvict(value = "courses", allEntries = true)
     public void setCourseClasses(Long courseId, List<CourseClass> classes) {
         courseClassMapper.delete(new LambdaQueryWrapper<CourseClass>()
             .eq(CourseClass::getCourseId, courseId));
@@ -425,5 +387,181 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             cc.setId(null);
             courseClassMapper.insert(cc);
         }
+    }
+
+    // ========== Schedule Management ==========
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
+    public void addSchedule(Long courseId, ScheduleConflictDetector.ScheduleItem item) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() == 2) throw new BusinessException("已确认开课的课程不可修改排课");
+
+        // 1. 查询所有课程（用于教室/教师冲突检测）
+        List<Course> allCourses = courseMapper.selectList(null);
+
+        // 2. 教室冲突
+        String roomConflict = ScheduleConflictDetector.findRoomConflict(allCourses, item);
+        if (roomConflict != null) throw new BusinessException(roomConflict);
+
+        // 3. 教师冲突（相同教师的所有课程）
+        List<Course> teacherCourses = allCourses.stream()
+            .filter(c -> c.getTeacherId() != null && c.getTeacherId().equals(course.getTeacherId()))
+            .collect(Collectors.toList());
+        String teacherConflict = ScheduleConflictDetector.findTeacherConflict(teacherCourses, item);
+        if (teacherConflict != null) throw new BusinessException(teacherConflict);
+
+        // 4. 班级冲突（该课程关联班级的其他课程）
+        List<CourseClass> classLinks = courseClassMapper.selectList(
+            new LambdaQueryWrapper<CourseClass>().eq(CourseClass::getCourseId, courseId));
+        for (CourseClass link : classLinks) {
+            List<Course> classCourses = courseClassMapper.selectList(
+                new LambdaQueryWrapper<CourseClass>().eq(CourseClass::getClassId, link.getClassId()))
+                .stream()
+                .map(cl -> courseMapper.selectById(cl.getCourseId()))
+                .filter(cl -> cl != null && !cl.getId().equals(courseId))
+                .collect(Collectors.toList());
+            String classConflict = ScheduleConflictDetector.findClassConflict(classCourses, item);
+            if (classConflict != null) throw new BusinessException(classConflict);
+        }
+
+        // 5. 无冲突 → 更新 schedule
+        List<ScheduleConflictDetector.ScheduleItem> items = ScheduleConflictDetector.parseSchedule(course.getSchedule());
+        items.add(item);
+        course.setSchedule(ScheduleConflictDetector.toScheduleJson(items));
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
+    public void removeSchedule(Long courseId, int scheduleIndex) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() == 2) throw new BusinessException("已确认开课的课程不可修改排课");
+
+        List<ScheduleConflictDetector.ScheduleItem> items = ScheduleConflictDetector.parseSchedule(course.getSchedule());
+        if (scheduleIndex < 0 || scheduleIndex >= items.size()) throw new BusinessException("排课索引无效");
+
+        items.remove(scheduleIndex);
+        course.setSchedule(ScheduleConflictDetector.toScheduleJson(items));
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "courses", allEntries = true)
+    public void updateSchedule(Long courseId, int scheduleIndex, ScheduleConflictDetector.ScheduleItem newItem) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new BusinessException("课程不存在");
+        if (course.getStatus() == 2) throw new BusinessException("已确认开课的课程不可修改排课");
+
+        List<ScheduleConflictDetector.ScheduleItem> items = ScheduleConflictDetector.parseSchedule(course.getSchedule());
+        if (scheduleIndex < 0 || scheduleIndex >= items.size()) throw new BusinessException("排课索引无效");
+
+        // 检查课程内部排课冲突（新增项与同课程其他排课项的冲突）
+        for (int i = 0; i < items.size(); i++) {
+            if (i == scheduleIndex) continue;
+            if (ScheduleConflictDetector.isTimeConflict(newItem, items.get(i))) {
+                throw new BusinessException("课程内部排课时间冲突");
+            }
+        }
+
+        // 排除自身后做冲突检测
+        List<Course> allCourses = courseMapper.selectList(null);
+        List<Course> otherCourses = allCourses.stream()
+            .filter(c -> !c.getId().equals(courseId))
+            .collect(Collectors.toList());
+
+        // 教室冲突
+        String roomConflict = ScheduleConflictDetector.findRoomConflict(otherCourses, newItem);
+        if (roomConflict != null) throw new BusinessException(roomConflict);
+
+        // 教师冲突
+        List<Course> teacherCourses = otherCourses.stream()
+            .filter(c -> c.getTeacherId() != null && c.getTeacherId().equals(course.getTeacherId()))
+            .collect(Collectors.toList());
+        String teacherConflict = ScheduleConflictDetector.findTeacherConflict(teacherCourses, newItem);
+        if (teacherConflict != null) throw new BusinessException(teacherConflict);
+
+        // 班级冲突
+        List<CourseClass> classLinks = courseClassMapper.selectList(
+            new LambdaQueryWrapper<CourseClass>().eq(CourseClass::getCourseId, courseId));
+        for (CourseClass link : classLinks) {
+            List<Course> classCourses = courseClassMapper.selectList(
+                new LambdaQueryWrapper<CourseClass>().eq(CourseClass::getClassId, link.getClassId()))
+                .stream()
+                .map(cl -> courseMapper.selectById(cl.getCourseId()))
+                .filter(cl -> cl != null && !cl.getId().equals(courseId))
+                .collect(Collectors.toList());
+            String classConflict = ScheduleConflictDetector.findClassConflict(classCourses, newItem);
+            if (classConflict != null) throw new BusinessException(classConflict);
+        }
+
+        // 全部通过 → 替换并保存
+        items.set(scheduleIndex, newItem);
+        course.setSchedule(ScheduleConflictDetector.toScheduleJson(items));
+        courseMapper.updateById(course);
+    }
+
+    @Override
+    public List<Course> getScheduleByClass(Long classId) {
+        List<CourseClass> links = courseClassMapper.selectList(
+            new LambdaQueryWrapper<CourseClass>().eq(CourseClass::getClassId, classId));
+        List<Long> courseIds = links.stream()
+            .map(CourseClass::getCourseId)
+            .collect(Collectors.toList());
+        if (courseIds.isEmpty()) return List.of();
+        List<Course> courses = courseMapper.selectBatchIds(courseIds);
+        for (Course c : courses) {
+            if (c.getTeacherId() != null) {
+                SysUser teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return courses;
+    }
+
+    @Override
+    public List<Course> getScheduleByTeacher(Long teacherId) {
+        List<Course> courses = courseMapper.selectList(
+            new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, teacherId));
+        for (Course c : courses) {
+            if (c.getTeacherId() != null) {
+                SysUser teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return courses;
+    }
+
+    @Override
+    public List<Course> getScheduleByRoom(String classroom) {
+        List<Course> allCourses = courseMapper.selectList(null);
+        List<Course> result = new ArrayList<>();
+        for (Course course : allCourses) {
+            String scheduleJson = course.getSchedule();
+            if (scheduleJson != null && !scheduleJson.isEmpty()) {
+                List<ScheduleConflictDetector.ScheduleItem> items = ScheduleConflictDetector.parseSchedule(scheduleJson);
+                boolean match = items.stream().anyMatch(item -> classroom.equals(item.classroom));
+                if (match) {
+                    result.add(course);
+                    continue;
+                }
+            }
+            // 兼容旧的 classroom 字段
+            if (course.getClassroom() != null && classroom.equals(course.getClassroom())) {
+                result.add(course);
+            }
+        }
+        for (Course c : result) {
+            if (c.getTeacherId() != null) {
+                SysUser teacher = userMapper.selectById(c.getTeacherId());
+                if (teacher != null) c.setTeacherName(teacher.getRealName());
+            }
+        }
+        return result;
     }
 }

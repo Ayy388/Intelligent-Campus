@@ -12,7 +12,7 @@ export function updateActivitySummary(id: number, summary: string, images?: stri
   return request.put(`/activity/${id}/summary`, null, { params: { summary, images } })
 }
 
-export function createActivity(data: any) {
+export function createActivity(data: Record<string, any>) {
   return request.post('/activity', data)
 }
 

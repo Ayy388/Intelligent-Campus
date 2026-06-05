@@ -11,27 +11,22 @@ public interface ClubService {
     void updateClub(Long id, Club c);
     void approveClub(Long clubId, Integer status);
     ClubMember applyMember(Long clubId, Long userId, String reason);
-    void approveMember(Long memberId, Integer status);
+    void approveMember(Long memberId, Integer status, Long userId);
     List<ClubMember> getMembers(Long clubId);
     List<ClubMember> getMyMemberships(Long userId);
     void leaveClub(Long clubId, Long userId);
     void disbandClub(Long clubId, Long userId);
     void approveDisband(Long clubId, Integer status);
     void cancelDisband(Long clubId, Long userId);
-
-    Page<Activity> pageActivities(Long clubId, int page, int size);
-    void saveActivity(Activity a);
-    ActivityEnrollment enroll(Long activityId, Long userId);
-    List<ActivityEnrollment> getEnrollments(Long activityId);
-    void updateActivitySummary(Long id, String summary, String images);
+    void removeMember(Long clubId, Long memberId, Long userId);
+    void transferPresidency(Long clubId, Long currentUserId, Long targetUserId);
+    void setMemberRole(Long clubId, Long memberId, Long userId, String role);
 
     List<Venue> getVenues();
     Page<VenueBooking> pageBookings(Long userId, String role, int page, int size, Integer status);
     void applyBooking(VenueBooking b);
     void approveBooking(Long id, Long approverId, Integer status, String reason);
     void deleteClub(Long id);
-    void deleteActivity(Long id);
-    void cancelEnroll(Long id, Long userId);
     void saveVenue(Venue v);
     void updateVenue(Long id, Venue v);
     void deleteVenue(Long id);

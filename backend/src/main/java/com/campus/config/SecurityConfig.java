@@ -28,11 +28,19 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/sys/departments/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/majors/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/grades/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/classes/all").authenticated()
                 .requestMatchers("/api/sys/**").hasRole("admin")
+
+                // 排课管理（仅管理员）— 必须在通用 courses 规则之前
+                .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/schedule").hasRole("admin")
+                .requestMatchers(HttpMethod.PUT, "/api/edu/courses/*/schedule/**").hasRole("admin")
+                .requestMatchers(HttpMethod.DELETE, "/api/edu/courses/*/schedule/**").hasRole("admin")
+                // 课表多维查询（所有认证用户）
+                .requestMatchers(HttpMethod.GET, "/api/edu/schedule/class/**", "/api/edu/schedule/teacher/**", "/api/edu/schedule/room/**").authenticated()
 
                 // 选课（学生可访问）
                 .requestMatchers(HttpMethod.POST, "/api/edu/courses/*/enroll").authenticated()
@@ -61,6 +69,8 @@ public class SecurityConfig {
                 // 成绩: 查看→所有人, 录入→teacher/admin
                 .requestMatchers(HttpMethod.GET, "/api/edu/grades", "/api/edu/grades/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/edu/grades").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.PUT, "/api/edu/grades/**").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.DELETE, "/api/edu/grades/**").hasRole("admin")
 
                 // 培养方案: 增删改→admin, 查看→所有人
                 .requestMatchers(HttpMethod.POST, "/api/edu/training-plans/**").hasRole("admin")
@@ -77,13 +87,12 @@ public class SecurityConfig {
 
                 .requestMatchers("/api/life/card-recharge/**").hasRole("student")
                 .requestMatchers("/api/life/lost-found/**").authenticated()
+                // 社团: list/detail/members 允许未登录查看, 其余需认证
+                .requestMatchers(HttpMethod.GET, "/api/club/list").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/club/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/club/*/members").permitAll()
                 .requestMatchers("/api/club/**").authenticated()
                 .requestMatchers("/api/activity/**").authenticated()
-
-                // 成长: 签到创建+评语→teacher/admin, 查看→所有人
-                .requestMatchers(HttpMethod.POST, "/api/growth/checkin").hasAnyRole("teacher", "admin")
-                .requestMatchers(HttpMethod.POST, "/api/growth/evaluation").hasAnyRole("teacher", "admin")
-                .requestMatchers("/api/growth/**").authenticated()
 
                 .requestMatchers(HttpMethod.POST, "/api/message/announcement").hasAnyRole("teacher", "admin")
                 .requestMatchers("/api/message/**").authenticated()

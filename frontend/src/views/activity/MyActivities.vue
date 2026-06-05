@@ -210,6 +210,7 @@
 import { ref, onMounted } from 'vue'
 import { getMyActivities, getMyRegistrations, confirmActivity, cancelRegistration, updateActivitySummary, getActivity, getRegistrations, withdrawActivity, finishActivity } from '@/api/activity'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { categoryLabel } from '@/utils/labels'
 
 const tabs = [{ key: 'created', label: '我创建的' }, { key: 'registered', label: '我报名的' }]
 const activeTab = ref('created')
@@ -238,11 +239,6 @@ function statusBadgeClass(status: number) {
   if (status === 3) return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
   if (status === 4) return 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
   return 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
-}
-
-function categoryLabel(cat: string) {
-  const m: Record<string, string> = { academic: '学术科技', sports: '体育竞技', cultural: '文化艺术', volunteer: '志愿服务', other: '其他' }
-  return m[cat] || cat || '未分类'
 }
 
 async function fetchData() {

@@ -82,11 +82,12 @@
 import { ref, onMounted } from 'vue'
 import { getSelections, dropCourse } from '@/api/edu'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { CourseSelection } from '@/types'
 
-const mySelections = ref<any[]>([])
+const mySelections = ref<CourseSelection[]>([])
 const loading = ref(false)
 
-function statusClass(item: any) {
+function statusClass(item: CourseSelection) {
   if (item.courseStatus === 2) return { label: '已确认', tagType: 'success' as const, bgClass: 'bg-gradient-to-br from-emerald-400 to-teal-500' }
   if (item.courseStatus === 3) return { label: '已取消', tagType: 'danger' as const, bgClass: 'bg-gradient-to-br from-red-400 to-rose-500' }
   return { label: '选课中', tagType: 'warning' as const, bgClass: 'bg-gradient-to-br from-amber-400 to-orange-500' }
@@ -104,7 +105,7 @@ async function fetchData() {
   }
 }
 
-async function doDrop(item: any) {
+async function doDrop(item: CourseSelection) {
   try {
     await ElMessageBox.confirm(`确定要退选「${item.courseName}」吗？`, '确认退课', {
       confirmButtonText: '确认退课',

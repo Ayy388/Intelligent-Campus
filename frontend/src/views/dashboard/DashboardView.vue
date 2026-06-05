@@ -250,7 +250,6 @@
             <div class="text-sm font-medium text-gray-800 truncate">{{ c.courseName }}</div>
             <p class="text-xs text-gray-400 mt-0.5">第{{ c.timeSlot }}大节 · {{ c.weeks === 'odd' ? '单周' : c.weeks === 'even' ? '双周' : '全周' }}</p>
           </div>
-          <el-button size="small" type="primary" plain @click="goCheckin(c.id)">发起签到</el-button>
         </div>
       </div>
       <div v-else class="flex flex-col items-center justify-center py-8 text-gray-400">
@@ -321,11 +320,11 @@ import { ElMessage } from 'element-plus'
 import { getNotifications, getLeaves } from '@/api/admin'
 import { getSchedule, getSemesters, getCourses, getTeacherCourses, getCourseStudents, getCourseClasses } from '@/api/edu'
 import { getClubs } from '@/api/club'
-import { getCheckIns } from '@/api/growth'
+
 import { getUsers, getAllClasses } from '@/api/sys'
 import { getTodos, updateTodo, createTodo } from '@/api/todo'
 import { getUnreadNotificationCount } from '@/api/admin'
-import { getUncheckedCheckInCount } from '@/api/growth'
+
 import { getLostFound } from '@/api/life'
 
 const router = useRouter()
@@ -369,13 +368,11 @@ const quickLinks = computed(() => {
       { label: '成绩查询', path: '/edu/grades', bg: 'bg-gradient-to-br from-emerald-500 to-teal-500', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>` },
       { label: 'AI 助手', path: '/ai/chat', bg: 'bg-gradient-to-br from-rose-500 to-pink-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>` },
       { label: '通知公告', path: '/admin/notifications', bg: 'bg-gradient-to-br from-amber-500 to-orange-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>` },
-      { label: '签到打卡', path: '/growth/checkin', bg: 'bg-gradient-to-br from-sky-500 to-indigo-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` },
     ]
   }
   if (role === 'teacher' || role === 'counselor') {
     return [
       { label: '我的教学', path: '/edu/teaching', bg: 'bg-gradient-to-br from-blue-500 to-cyan-500', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>` },
-      { label: '签到管理', path: '/growth/checkin', bg: 'bg-gradient-to-br from-sky-500 to-indigo-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` },
       { label: '通知公告', path: '/admin/notifications', bg: 'bg-gradient-to-br from-amber-500 to-orange-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>` },
       { label: 'AI 助手', path: '/ai/chat', bg: 'bg-gradient-to-br from-rose-500 to-pink-600', icon: `<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>` },
     ]
@@ -414,10 +411,8 @@ async function fetchStats() {
           courseCount = schedRes.data?.length || 0
         }
       } catch {}
-      const [unreadRes, uncheckedRes] = await Promise.all([
-        getUnreadNotificationCount(), getUncheckedCheckInCount()
-      ])
-      const notiCount = (unreadRes.data || 0) + (uncheckedRes.data || 0)
+      const unreadRes = await getUnreadNotificationCount()
+      const notiCount = (unreadRes.data || 0)
       let clubCount = 0
       try { const clubRes = await getClubs(); clubCount = clubRes.data?.length || 0 } catch {}
       stats.length = 0
@@ -433,7 +428,7 @@ async function fetchStats() {
       for (const c of coursesData) {
         try {
           const ccRes = await getCourseClasses(c.id)
-          ;(ccRes.data || []).forEach((cc) => { if (cc.classId) classIds.add(cc.classId) })
+          ;(ccRes.data || []).forEach((cc: any) => { if (cc.classId) classIds.add(cc.classId) })
         } catch {}
       }
       const classCount = classIds.size
@@ -442,18 +437,15 @@ async function fetchStats() {
       for (const c of coursesData) {
         try {
           const stuRes = await getCourseStudents(c.id)
-          ;(stuRes.data || []).forEach((s) => { if (s.studentId) studentIds.add(s.studentId) })
+          ;(stuRes.data || []).forEach((s: any) => { if (s.studentId) studentIds.add(s.studentId) })
         } catch {}
       }
       const studentCount = studentIds.size
 
-      let checkinCount = 0
-      try { const checkinRes = await getCheckIns({ page: 1, size: 1 }); checkinCount = checkinRes.data?.total || 0 } catch {}
       stats.length = 0
       stats.push({ label: '我的课程', value: courseCount, icon: '<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)' })
       stats.push({ label: '我的班级', value: classCount, icon: '<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', gradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' })
       stats.push({ label: '授课学生', value: studentCount, icon: '<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', gradient: 'linear-gradient(135deg, #10b981, #14b8a6)' })
-      stats.push({ label: '本周签到', value: checkinCount, icon: '<svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>', gradient: 'linear-gradient(135deg, #ec4899, #f43f5e)' })
     } else {
       const usersRes = await getUsers({ page: 1, size: 1 })
       const userCount = usersRes.data?.total || 0
@@ -519,10 +511,6 @@ async function fetchTodaySchedule() {
       } catch { return false }
     })
   } catch {}
-}
-
-function goCheckin(courseId: number) {
-  router.push(`/growth/checkin?courseId=${courseId}`)
 }
 
 async function toggleTodo(t: any) {

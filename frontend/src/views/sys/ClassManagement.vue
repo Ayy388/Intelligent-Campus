@@ -49,8 +49,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getClasses, createClass, updateClass, deleteClass, getAllDepartments, getMajorsByDept, getAllGrades, getUsers } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { ClassInfo, Department, Major, SysGrade, User } from '@/types'
 
-const list = ref<any[]>([])
+const list = ref<ClassInfo[]>([])
 const loading = ref(false)
 const page = ref(1)
 const size = ref(20)
@@ -58,10 +59,10 @@ const total = ref(0)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const editId = ref<number | null>(null)
-const departments = ref<any[]>([])
-const majors = ref<any[]>([])
-const grades = ref<any[]>([])
-const counselors = ref<any[]>([])
+const departments = ref<Department[]>([])
+const majors = ref<Major[]>([])
+const grades = ref<SysGrade[]>([])
+const counselors = ref<User[]>([])
 const form = reactive({ className: '', departmentId: null as number | null, majorId: null as number | null, gradeId: null as number | null, counselorId: null as number | null })
 
 async function fetch() {
@@ -84,7 +85,7 @@ async function fetchCounselors() {
   try {
     const r = await getUsers({ page: 1, size: 999 })
     const users = r.data.records || []
-    counselors.value = users.filter((u: any) => u.roleId === 4)
+    counselors.value = users.filter((u: User) => u.roleId === 4)
   } catch { counselors.value = [] }
 }
 
@@ -104,10 +105,10 @@ function openCreate() {
   dialogVisible.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: ClassInfo) {
   isEdit.value = true; editId.value = row.id
-  form.className = row.className; form.departmentId = row.departmentId
-  form.majorId = row.majorId; form.gradeId = row.gradeId; form.counselorId = row.counselorId
+  form.className = row.className; form.departmentId = row.departmentId ?? null
+  form.majorId = row.majorId ?? null; form.gradeId = row.gradeId ?? null; form.counselorId = row.counselorId ?? null
   if (row.departmentId) onDeptChange(row.departmentId)
   dialogVisible.value = true
 }

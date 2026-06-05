@@ -1,6 +1,6 @@
 import request from '@/utils/request'
 
-export function getConversations(params: any) {
+export function getConversations(params?: Record<string, any>) {
   return request.get('/message/conversations', { params })
 }
 
@@ -16,10 +16,10 @@ export function markRead(id: number) {
   return request.put(`/message/read/${id}`)
 }
 
-export function getAnnouncements(params: any) {
+export function getAnnouncements(params?: Record<string, any>) {
   return request.get('/message/announcement', { params })
 }
 
-export function pushAnnouncement(data: any) {
+export function pushAnnouncement(data: Record<string, any>) {
   return request.post('/message/announcement', data)
 }

@@ -29,8 +29,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getDepartments, createDepartment, updateDepartment, deleteDepartment } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { Department } from '@/types'
 
-const list = ref<any[]>([])
+const list = ref<Department[]>([])
 const loading = ref(false)
 const page = ref(1)
 const size = ref(20)
@@ -54,7 +55,7 @@ function openCreate() {
   dialogVisible.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: Department) {
   isEdit.value = true; editId.value = row.id
   form.name = row.name; form.code = row.code || ''; form.sortOrder = row.sortOrder || 0
   dialogVisible.value = true

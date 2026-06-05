@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.common.BusinessException;
 import com.campus.module.activity.entity.ActivityCenter;
+import com.campus.module.sys.constant.RoleConstants;
 import com.campus.module.activity.entity.ActivityRegistration;
 import com.campus.module.activity.mapper.ActivityCenterMapper;
 import com.campus.module.activity.mapper.ActivityRegistrationMapper;
@@ -132,6 +133,33 @@ public class ActivityCenterServiceImpl implements ActivityCenterService {
         ActivityCenter a = activityMapper.selectById(id);
         if (a == null) throw new BusinessException("活动不存在");
         if (a.getStatus() != 0) throw new BusinessException("该活动已被处理，无法重复审核");
+
+        // 权限校验
+        SysUser approver = userMapper.selectById(approverId);
+        if (approver == null) throw new BusinessException("用户不存在");
+
+        boolean isAdmin = RoleConstants.ADMIN.equals(approver.getRoleId());
+        boolean isPresident = false;
+
+        if (a.getClubId() != null) {
+            // 社团活动：社长可审批
+            Long presidentCount = clubMemberMapper.selectCount(
+                    new LambdaQueryWrapper<ClubMember>()
+                            .eq(ClubMember::getClubId, a.getClubId())
+                            .eq(ClubMember::getUserId, approverId)
+                            .eq(ClubMember::getRole, "president")
+                            .eq(ClubMember::getStatus, 1));
+            isPresident = presidentCount > 0;
+        }
+
+        if (!isAdmin && !isPresident) {
+            if (a.getClubId() != null) {
+                throw new BusinessException("只有管理员或社团社长才能审核该活动");
+            } else {
+                throw new BusinessException("只有管理员才能审核全校活动");
+            }
+        }
+
         a.setStatus(status);
         a.setApproverId(approverId);
         a.setRejectReason(rejectReason);
@@ -159,7 +187,7 @@ public class ActivityCenterServiceImpl implements ActivityCenterService {
         if (a.getStatus() != 1) throw new BusinessException("活动未开放报名");
         if (a.getCreatorId().equals(userId)) throw new BusinessException("不能报名自己发起的活动");
 
-        if (a.getMaxParticipants() > 0 && a.getCurrentParticipants() + 1 >= a.getMaxParticipants()) {
+        if (a.getMaxParticipants() > 0 && a.getCurrentParticipants() >= a.getMaxParticipants()) {
             throw new BusinessException("报名人数已满");
         }
 

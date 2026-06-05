@@ -1,0 +1,9 @@
+# backend
+backend/node_modules
+backend/target
+backend/.git
+
+# frontend
+frontend/node_modules
+frontend/dist
+frontend/.git

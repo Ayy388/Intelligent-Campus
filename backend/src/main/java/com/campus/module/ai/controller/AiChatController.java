@@ -8,6 +8,8 @@ import com.campus.module.ai.mapper.AiConversationMapper;
 import com.campus.module.ai.mapper.AiMessageMapper;
 import com.campus.module.ai.service.DeepSeekService;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
+@Tag(name = "AI 助手", description = "AI 智能对话助手")
 public class AiChatController {
     private final DeepSeekService deepSeekService;
     private final AiConversationMapper convMapper;
@@ -27,6 +30,7 @@ public class AiChatController {
         return Long.parseLong(((Claims) auth.getDetails()).getSubject());
     }
 
+    @Operation(summary = "AI 对话（SSE 流式响应）")
     @PostMapping("/chat")
     public SseEmitter chat(Authentication auth,
             @RequestParam String question,
@@ -34,6 +38,7 @@ public class AiChatController {
         return deepSeekService.chat(getUserId(auth), conversationId, question);
     }
 
+    @Operation(summary = "获取 AI 对话历史列表")
     @GetMapping("/conversations")
     public Result<List<AiConversation>> conversations(Authentication auth) {
         List<AiConversation> list = convMapper.selectList(
@@ -43,6 +48,7 @@ public class AiChatController {
         return Result.ok(list);
     }
 
+    @Operation(summary = "获取对话详情消息")
     @GetMapping("/conversations/{id}")
     public Result<List<AiMessage>> messages(@PathVariable Long id, Authentication auth) {
         AiConversation conv = convMapper.selectById(id);
@@ -55,6 +61,7 @@ public class AiChatController {
                         .orderByAsc(AiMessage::getCreateTime)));
     }
 
+    @Operation(summary = "删除对话记录")
     @DeleteMapping("/conversations/{id}")
     public Result<Void> deleteConv(@PathVariable Long id, Authentication auth) {
         AiConversation conv = convMapper.selectById(id);

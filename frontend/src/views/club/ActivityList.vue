@@ -40,7 +40,7 @@
               </span>
               <span class="inline-flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-                {{ a.activityType || '未分类' }}
+                {{ a.category ? categoryLabel(a.category) : '未分类' }}
               </span>
               <span class="inline-flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -56,19 +56,19 @@
               <div class="flex-1 max-w-xs">
                 <div class="flex items-center justify-between text-xs mb-1">
                   <span class="text-mist">报名人数</span>
-                  <span class="font-medium" :class="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll ? 'text-red-500' : 'text-ink'">
-                    {{ a.enrolled || 0 }}
-                    <span v-if="a.maxEnroll > 0" class="text-mist font-normal"> / {{ a.maxEnroll }}</span>
+                  <span class="font-medium" :class="a.maxParticipants > 0 && (a.currentParticipants||0) >= a.maxParticipants ? 'text-red-500' : 'text-ink'">
+                    {{ a.currentParticipants || 0 }}
+                    <span v-if="a.maxParticipants > 0" class="text-mist font-normal"> / {{ a.maxParticipants }}</span>
                   </span>
                 </div>
-                <div v-if="a.maxEnroll > 0" class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div v-if="a.maxParticipants > 0" class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div class="h-full rounded-full transition-all duration-500"
-                    :class="a.enrolled >= a.maxEnroll ? 'bg-red-400' : a.enrolled / a.maxEnroll > 0.6 ? 'bg-amber-400' : 'bg-emerald-400'"
-                    :style="{ width: Math.min((a.enrolled || 0) / a.maxEnroll * 100, 100) + '%' }">
+                    :class="(a.currentParticipants||0) >= a.maxParticipants ? 'bg-red-400' : ((a.currentParticipants||0)) / a.maxParticipants > 0.6 ? 'bg-amber-400' : 'bg-emerald-400'"
+                    :style="{ width: Math.min(((a.currentParticipants || 0)) / a.maxParticipants * 100, 100) + '%' }">
                   </div>
                 </div>
               </div>
-              <span v-if="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll"
+              <span v-if="a.maxParticipants > 0 && (a.currentParticipants||0) >= a.maxParticipants"
                 class="inline-flex items-center gap-1 text-xs text-red-500 font-medium shrink-0">
                 <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
                 已满
@@ -77,17 +77,23 @@
           </div>
           <div class="flex flex-col gap-2 shrink-0 pt-1">
             <button v-if="userStore.role==='student' && a.status===1"
-              :disabled="a.maxEnroll > 0 && a.enrolled >= a.maxEnroll"
+              :disabled="a.maxParticipants > 0 && (a.currentParticipants||0) >= a.maxParticipants"
               @click="doEnroll(a)"
               class="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-ink text-white rounded-xl text-xs font-medium hover:bg-steel active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 shadow-sm">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
-              {{ a.enrolled >= a.maxEnroll && a.maxEnroll > 0 ? '已满' : '报名' }}
+              {{ (a.currentParticipants||0) >= a.maxParticipants && a.maxParticipants > 0 ? '已满' : '报名' }}
             </button>
             <button v-if="(userStore.role==='admin'||userStore.role==='teacher') && (a.status===2||a.status===3)"
               @click="openSummary(a)"
               class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium border border-ink/20 text-ink rounded-xl hover:bg-ink hover:text-white active:scale-[0.97] transition-all duration-200">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               活动总结
+            </button>
+            <button v-if="a.status===0 && (userStore.role==='admin'||userStore.role==='teacher')"
+              @click="doApprove(a.id)"
+              class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl hover:bg-emerald-100 active:scale-[0.97] transition-all duration-200">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              通过
             </button>
             <button @click="openEnrollments(a)"
               class="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium text-mist hover:text-ink hover:bg-gray-50 rounded-xl active:scale-[0.97] transition-all duration-200">
@@ -119,13 +125,13 @@
             <el-input v-model="form.title" placeholder="请输入活动标题" />
           </el-form-item>
           <div class="grid grid-cols-2 gap-4">
-            <el-form-item label="活动类型">
-              <el-select v-model="form.activityType" placeholder="请选择类型" style="width:100%">
-                <el-option label="讲座" value="讲座" />
-                <el-option label="比赛" value="比赛" />
-                <el-option label="团建" value="团建" />
-                <el-option label="会议" value="会议" />
-                <el-option label="其他" value="其他" />
+            <el-form-item label="活动类别">
+              <el-select v-model="form.category" placeholder="请选择类别" style="width:100%">
+                <el-option label="学术科技" value="academic" />
+                <el-option label="体育竞技" value="sports" />
+                <el-option label="文化艺术" value="cultural" />
+                <el-option label="志愿服务" value="volunteer" />
+                <el-option label="其他" value="other" />
               </el-select>
             </el-form-item>
             <el-form-item label="活动地点">
@@ -140,8 +146,8 @@
               <el-date-picker v-model="form.endTime" type="datetime" placeholder="选择结束时间" style="width:100%" />
             </el-form-item>
           </div>
-          <el-form-item label="人数上限">
-            <el-input-number v-model="form.maxEnroll" :min="0" :max="9999" style="width:100%" />
+          <el-form-item label="人数上限（0=不限）">
+            <el-input-number v-model="form.maxParticipants" :min="0" :max="9999" style="width:100%" />
           </el-form-item>
           <el-form-item label="活动描述">
             <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入活动描述" />
@@ -196,7 +202,7 @@
             </div>
             <div>
               <div class="text-sm font-medium text-ink">{{ e.userName || '未知用户' }}</div>
-              <div class="text-xs text-mist">{{ e.enrollTime?.substring(0,16) || '' }}</div>
+              <div class="text-xs text-mist">{{ e.registerTime?.substring(0,16) || '' }}</div>
             </div>
           </div>
         </div>
@@ -212,9 +218,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { getClubs, getActivities, createActivity, enrollActivity, getEnrollments, updateActivitySummary } from '@/api/club'
+import { getClubs, getPublicActivities, createActivity, registerActivity, getRegistrations, updateActivitySummary, approveActivity } from '@/api/activity'
 import { useUserStore } from '@/store/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { categoryLabel } from '@/utils/labels'
 
 const userStore = useUserStore()
 
@@ -232,11 +239,11 @@ const createVisible = ref(false)
 const form = reactive({
   clubId: null as number | null,
   title: '',
-  activityType: '',
+  category: '',
   location: '',
   startTime: '',
   endTime: '',
-  maxEnroll: 0,
+  maxParticipants: 0,
   description: '',
 })
 
@@ -261,9 +268,7 @@ async function fetchClubs() {
 async function fetchActivities() {
   loading.value = true
   try {
-    const params: any = { page: page.value, size: pageSize }
-    if (filterClubId.value) params.clubId = filterClubId.value
-    const r = await getActivities(params)
+    const r = await getPublicActivities({ page: page.value, size: pageSize, clubId: filterClubId.value || undefined })
     activities.value = r.data.records || []
     total.value = r.data.total || 0
   } catch {
@@ -276,11 +281,11 @@ async function fetchActivities() {
 function showCreate() {
   form.clubId = null
   form.title = ''
-  form.activityType = ''
+  form.category = ''
   form.location = ''
   form.startTime = ''
   form.endTime = ''
-  form.maxEnroll = 0
+  form.maxParticipants = 0
   form.description = ''
   createVisible.value = true
 }
@@ -300,8 +305,19 @@ async function doCreate() {
   finally { submitting.value = false }
 }
 
+async function doApprove(activityId: number) {
+  try {
+    await ElMessageBox.confirm('确认通过该活动审核？通过后学生可报名。', '提示', { type: 'info' })
+  } catch { return }
+  try {
+    await approveActivity(activityId, 1)
+    ElMessage.success('已通过')
+    fetchActivities()
+  } catch { ElMessage.error('操作失败') }
+}
+
 async function doEnroll(activity: any) {
-  if (activity.maxEnroll > 0 && activity.enrolled >= activity.maxEnroll) {
+  if (activity.maxParticipants > 0 && (activity.currentParticipants || 0) >= activity.maxParticipants) {
     ElMessage.warning('报名人数已满')
     return
   }
@@ -312,7 +328,7 @@ async function doEnroll(activity: any) {
   }
   enrolling.value = true
   try {
-    await enrollActivity(activity.id)
+    await registerActivity(activity.id)
     ElMessage.success('报名成功')
     fetchActivities()
   } catch (e: any) {
@@ -346,8 +362,8 @@ async function openEnrollments(activity: any) {
   enrollVisible.value = true
   enrolling.value = true
   try {
-    const r = await getEnrollments(activity.id)
-    enrollments.value = r.data || []
+    const r = await getRegistrations(activity.id, { page: 1, size: 999 })
+    enrollments.value = r.data.records || []
   } catch { enrollments.value = [] }
   finally { enrolling.value = false }
 }

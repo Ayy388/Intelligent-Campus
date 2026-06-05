@@ -3,9 +3,12 @@ package com.campus.module.club.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.common.BusinessException;
+import com.campus.module.admin.entity.Notification;
+import com.campus.module.admin.service.AdminService;
 import com.campus.module.club.entity.*;
 import com.campus.module.club.mapper.*;
 import com.campus.module.club.service.ClubService;
+import com.campus.module.sys.constant.RoleConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +20,16 @@ import java.util.List;
 public class ClubServiceImpl implements ClubService {
     private final ClubMapper clubMapper;
     private final ClubMemberMapper memberMapper;
-    private final ActivityMapper activityMapper;
-    private final ActivityEnrollmentMapper enrollmentMapper;
     private final VenueMapper venueMapper;
     private final VenueBookingMapper bookingMapper;
     private final com.campus.module.sys.mapper.SysUserMapper userMapper;
+    private final AdminService adminService;
+
+    private void requirePresident(Club club, Long userId, String action) {
+        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
+            throw new BusinessException("只有社长才能" + action);
+        }
+    }
 
     @Override
     public List<Club> getClubs() {
@@ -43,7 +51,7 @@ public class ClubServiceImpl implements ClubService {
             m.setClubId(c.getId());
             m.setUserId(c.getPresidentId());
             m.setRole("president");
-            m.setStatus(1); // 社长自动通过
+            m.setStatus(0); // 社长待社团审核通过后才激活
             m.setApplyTime(LocalDateTime.now());
             memberMapper.insert(m);
         }
@@ -57,39 +65,94 @@ public class ClubServiceImpl implements ClubService {
     public void approveClub(Long clubId, Integer status) {
         Club club = clubMapper.selectById(clubId);
         if (club == null) throw new BusinessException("社团不存在");
+        if (status != 1 && status != 2) throw new BusinessException("无效的审核状态");
         club.setStatus(status);
         clubMapper.updateById(club);
+        if (status == 1) {
+            // 审核通过，激活社长成员
+            ClubMember president = memberMapper.selectOne(
+                new LambdaQueryWrapper<ClubMember>()
+                    .eq(ClubMember::getClubId, clubId)
+                    .eq(ClubMember::getRole, "president"));
+            if (president != null) {
+                president.setStatus(1);
+                president.setApproveTime(LocalDateTime.now());
+                memberMapper.updateById(president);
+            }
+        } else {
+            // 审核拒绝，删除社长成员记录
+            memberMapper.delete(new LambdaQueryWrapper<ClubMember>()
+                .eq(ClubMember::getClubId, clubId)
+                .eq(ClubMember::getRole, "president"));
+        }
     }
 
     @Override
+    @Transactional
     public ClubMember applyMember(Long clubId, Long userId, String reason) {
         Long cnt = memberMapper.selectCount(new LambdaQueryWrapper<ClubMember>()
             .eq(ClubMember::getClubId, clubId).eq(ClubMember::getUserId, userId)
-            .eq(ClubMember::getStatus, 0));
-        if (cnt > 0) throw new BusinessException("已申请，请等待审批");
+            .in(ClubMember::getStatus, 0, 1));
+        if (cnt > 0) throw new BusinessException("已申请或是该社团成员");
         ClubMember m = new ClubMember();
         m.setClubId(clubId); m.setUserId(userId); m.setApplyReason(reason);
         m.setRole("member");
         m.setApplyTime(LocalDateTime.now());
         m.setStatus(0);
         memberMapper.insert(m);
+        // 通知社长
+        Club club = clubMapper.selectById(clubId);
+        if (club != null && club.getPresidentId() != null) {
+            var user = userMapper.selectById(userId);
+            String userName = user != null ? user.getRealName() : "某用户";
+            Notification n = new Notification();
+            n.setTitle("新成员申请");
+            n.setContent(userName + " 申请加入「" + club.getName() + "」");
+            n.setCategory("club");
+            n.setPublisherId(userId);
+            n.setCreateTime(LocalDateTime.now());
+            // 由于是给社长看的，需要存到通知表；但当前通知表无 recipient 字段
+            // 作为简化，publisherId 存为申请人，社长通过 category="club" 手动查看
+            adminService.saveNotification(n);
+        }
         return m;
     }
 
     @Override
     @Transactional
-    public void approveMember(Long memberId, Integer status) {
+    public void approveMember(Long memberId, Integer status, Long userId) {
         ClubMember m = memberMapper.selectById(memberId);
         if (m == null) throw new BusinessException("申请记录不存在");
+
+        // 权限校验：管理员或该社团社长可审批
+        Club club = clubMapper.selectById(m.getClubId());
+        if (club == null) throw new BusinessException("社团不存在");
+        var operator = userMapper.selectById(userId);
+        boolean isAdmin = operator != null && RoleConstants.ADMIN.equals(operator.getRoleId());
+        boolean isPresident = club.getPresidentId() != null && club.getPresidentId().equals(userId);
+        if (!isAdmin && !isPresident) {
+            throw new BusinessException("只有管理员或社团社长才能审批成员");
+        }
+
         m.setStatus(status);
         m.setApproveTime(LocalDateTime.now());
         memberMapper.updateById(m);
-        if (status == 1) {
-            Club club = clubMapper.selectById(m.getClubId());
+        if (status == 1 && m.getStatus() != 1) {
             if (club != null) {
                 club.setMemberCount((club.getMemberCount() != null ? club.getMemberCount() : 0) + 1);
                 clubMapper.updateById(club);
             }
+        }
+        // 通知申请人
+        var user = userMapper.selectById(m.getUserId());
+        if (user != null) {
+            Notification n = new Notification();
+            n.setTitle(status == 1 ? "入社申请已通过" : "入社申请被拒绝");
+            n.setContent("你加入「" + club.getName() + "」的申请已" + (status == 1 ? "通过" : "被拒绝"));
+            n.setCategory("club");
+            n.setPublisherId(m.getUserId());
+            n.setCreateTime(LocalDateTime.now());
+            adminService.saveNotification(n);
         }
     }
 
@@ -113,9 +176,7 @@ public class ClubServiceImpl implements ClubService {
     public void disbandClub(Long clubId, Long userId) {
         Club club = clubMapper.selectById(clubId);
         if (club == null) throw new BusinessException("社团不存在");
-        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
-            throw new BusinessException("只有社长才能申请解散社团");
-        }
+        requirePresident(club, userId, "申请解散社团");
         if (club.getStatus() != 1) {
             throw new BusinessException("只有正常状态的社团才能申请解散");
         }
@@ -142,9 +203,7 @@ public class ClubServiceImpl implements ClubService {
     public void cancelDisband(Long clubId, Long userId) {
         Club club = clubMapper.selectById(clubId);
         if (club == null) throw new BusinessException("社团不存在");
-        if (club.getPresidentId() == null || !club.getPresidentId().equals(userId)) {
-            throw new BusinessException("只有社长才能撤销解散申请");
-        }
+        requirePresident(club, userId, "撤销解散申请");
         if (club.getStatus() != 3) {
             throw new BusinessException("该社团未申请解散");
         }
@@ -188,52 +247,75 @@ public class ClubServiceImpl implements ClubService {
     }
 
     @Override
-    public Page<Activity> pageActivities(Long clubId, int page, int size) {
-        LambdaQueryWrapper<Activity> w = new LambdaQueryWrapper<>();
-        if (clubId != null) w.eq(Activity::getClubId, clubId);
-        w.orderByDesc(Activity::getCreateTime);
-        return activityMapper.selectPage(new Page<>(page, size), w);
+    @Transactional
+    public void removeMember(Long clubId, Long memberId, Long userId) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        requirePresident(club, userId, "移除成员");
+        ClubMember target = memberMapper.selectById(memberId);
+        if (target == null || !target.getClubId().equals(clubId)) {
+            throw new BusinessException("成员不存在");
+        }
+        if ("president".equals(target.getRole())) {
+            throw new BusinessException("不能移除社长");
+        }
+        memberMapper.deleteById(memberId);
+        if (target.getStatus() == 1 && club.getMemberCount() != null && club.getMemberCount() > 0) {
+            club.setMemberCount(club.getMemberCount() - 1);
+            clubMapper.updateById(club);
+        }
     }
-
-    @Override
-    public void saveActivity(Activity a) { activityMapper.insert(a); }
 
     @Override
     @Transactional
-    public ActivityEnrollment enroll(Long activityId, Long userId) {
-        Activity activity = activityMapper.selectById(activityId);
-        if (activity == null) throw new BusinessException("活动不存在");
-        Integer max = activity.getMaxEnroll();
-        Integer enr = activity.getEnrolled();
-        if (max != null && max > 0 && enr != null && enr >= max)
-            throw new BusinessException("报名已满");
-        Long cnt = enrollmentMapper.selectCount(new LambdaQueryWrapper<ActivityEnrollment>()
-            .eq(ActivityEnrollment::getActivityId, activityId).eq(ActivityEnrollment::getUserId, userId));
-        if (cnt > 0) throw new BusinessException("已报名");
-        ActivityEnrollment e = new ActivityEnrollment();
-        e.setActivityId(activityId); e.setUserId(userId);
-        e.setStatus(1);
-        e.setEnrollTime(LocalDateTime.now());
-        enrollmentMapper.insert(e);
-        activity.setEnrolled((enr != null ? enr : 0) + 1);
-        activityMapper.updateById(activity);
-        return e;
+    public void transferPresidency(Long clubId, Long currentUserId, Long targetUserId) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        requirePresident(club, currentUserId, "转让社长职位");
+        ClubMember target = memberMapper.selectOne(
+            new LambdaQueryWrapper<ClubMember>()
+                .eq(ClubMember::getClubId, clubId)
+                .eq(ClubMember::getUserId, targetUserId)
+                .eq(ClubMember::getStatus, 1));
+        if (target == null) throw new BusinessException("目标用户不是已通过成员");
+        // 当前社长降为成员
+        ClubMember current = memberMapper.selectOne(
+            new LambdaQueryWrapper<ClubMember>()
+                .eq(ClubMember::getClubId, clubId)
+                .eq(ClubMember::getUserId, currentUserId));
+        if (current != null) {
+            current.setRole("member");
+            memberMapper.updateById(current);
+        }
+        // 目标升为社长
+        target.setRole("president");
+        memberMapper.updateById(target);
+        // 更新 club 的 presidentId
+        club.setPresidentId(targetUserId);
+        clubMapper.updateById(club);
     }
 
     @Override
-    public List<ActivityEnrollment> getEnrollments(Long activityId) {
-        return enrollmentMapper.selectList(new LambdaQueryWrapper<ActivityEnrollment>()
-            .eq(ActivityEnrollment::getActivityId, activityId));
-    }
-
-    @Override
-    public void updateActivitySummary(Long id, String summary, String images) {
-        Activity a = activityMapper.selectById(id);
-        if (a == null) throw new BusinessException("活动不存在");
-        a.setSummary(summary);
-        a.setImages(images);
-        a.setStatus(2);
-        activityMapper.updateById(a);
+    @Transactional
+    public void setMemberRole(Long clubId, Long memberId, Long userId, String role) {
+        Club club = clubMapper.selectById(clubId);
+        if (club == null) throw new BusinessException("社团不存在");
+        requirePresident(club, userId, "设置角色");
+        ClubMember target = memberMapper.selectById(memberId);
+        if (target == null || !target.getClubId().equals(clubId)) {
+            throw new BusinessException("成员不存在");
+        }
+        if ("president".equals(target.getRole())) {
+            throw new BusinessException("不能修改社长的角色");
+        }
+        if (target.getStatus() != 1) {
+            throw new BusinessException("只能修改已通过成员的角色");
+        }
+        if (!"vice_president".equals(role) && !"member".equals(role)) {
+            throw new BusinessException("无效的角色");
+        }
+        target.setRole(role);
+        memberMapper.updateById(target);
     }
 
     @Override
@@ -268,16 +350,6 @@ public class ClubServiceImpl implements ClubService {
 
     @Override
     public void deleteClub(Long id) { clubMapper.deleteById(id); }
-
-    @Override
-    public void deleteActivity(Long id) { activityMapper.deleteById(id); }
-
-    @Override
-    public void cancelEnroll(Long id, Long userId) {
-        ActivityEnrollment e = enrollmentMapper.selectById(id);
-        if (e == null || !e.getUserId().equals(userId)) throw new BusinessException("无权取消");
-        enrollmentMapper.deleteById(id);
-    }
 
     @Override
     public void saveVenue(Venue v) { venueMapper.insert(v); }

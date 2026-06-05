@@ -35,9 +35,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getMajors, getAllDepartments, createMajor, updateMajor, deleteMajor } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { Major, Department } from '@/types'
 
-const list = ref<any[]>([])
-const departments = ref<any[]>([])
+const list = ref<Major[]>([])
+const departments = ref<Department[]>([])
 const loading = ref(false)
 const page = ref(1)
 const size = ref(20)
@@ -50,9 +51,9 @@ const form = reactive({ name: '', code: '', departmentId: null as number | null,
 async function fetch() {
   loading.value = true
   const r = await getMajors({ page: page.value, size: size.value })
-  list.value = (r.data.records || []).map((item: any) => ({
+  list.value = (r.data.records || []).map((item: Major) => ({
     ...item,
-    departmentName: departments.value.find((d: any) => d.id === item.departmentId)?.name || ''
+    departmentName: departments.value.find((d: Department) => d.id === item.departmentId)?.name || ''
   }))
   total.value = r.data.total || 0
   loading.value = false
@@ -69,7 +70,7 @@ function openCreate() {
   dialogVisible.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: Major) {
   isEdit.value = true; editId.value = row.id
   form.name = row.name; form.code = row.code || ''; form.departmentId = row.departmentId; form.years = row.years || 4
   dialogVisible.value = true

@@ -114,13 +114,16 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { getTodos, createTodo, updateTodo, deleteTodo } from '@/api/todo'
+import type { TodoItem } from '@/types'
 
-const todos = ref<any[]>([])
+const todos = ref<TodoItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const showAdd = ref(false)
-const editing = ref<any>(null)
+const editing = ref<TodoItem | null>(null)
 const currentFilter = ref<'all' | 'pending' | 'done'>('pending')
+
+interface FilterItem { key: 'all' | 'pending' | 'done'; label: string; count: number }
 
 const form = reactive({
   title: '',
@@ -134,7 +137,7 @@ const displayedTodos = computed(() => {
   return todos.value
 })
 
-const filters = computed(() => {
+const filters = computed((): FilterItem[] => {
   const total = todos.value.length
   const done = todos.value.filter(t => t.completed === 1).length
   const pending = total - done
@@ -145,8 +148,8 @@ const filters = computed(() => {
   ]
 })
 
-function isOverdue(dateStr: string) {
-  return dateStr < new Date().toISOString().substring(0, 10)
+function isOverdue(dateStr: string | undefined | null) {
+  if (!dateStr) return false
 }
 
 function resetForm() {
@@ -185,14 +188,14 @@ async function handleSave() {
       await updateTodo(editing.value.id, {
         title: form.title,
         priority: form.priority,
-        dueDate: form.dueDate || null
+        dueDate: form.dueDate || undefined
       })
       ElMessage.success('已更新')
     } else {
       await createTodo({
         title: form.title,
         priority: form.priority,
-        dueDate: form.dueDate || null
+        dueDate: form.dueDate || undefined
       })
       ElMessage.success('已创建')
     }

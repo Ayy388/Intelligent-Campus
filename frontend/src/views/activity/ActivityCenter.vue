@@ -247,6 +247,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { getPublicActivities, createActivity, registerActivity, cancelRegistration, getActivity, getClubs, getRegistrations } from '@/api/activity'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
+import { categoryLabel } from '@/utils/labels'
 
 const userStore = useUserStore()
 const activities = ref<any[]>([])
@@ -265,11 +266,6 @@ const createVisible = ref(false)
 const form = reactive({ clubId: null as number | null, title: '', category: '', location: '', startTime: '', endTime: '', maxParticipants: 0, description: '' })
 
 const canCreate = computed(() => ['admin', 'teacher'].includes(userStore.role) || userStore.role === 'student')
-
-function categoryLabel(cat: string) {
-  const m: Record<string, string> = { academic: '学术科技', sports: '体育竞技', cultural: '文化艺术', volunteer: '志愿服务', other: '其他' }
-  return m[cat] || cat || '未分类'
-}
 
 function statusLabel(status: number) {
   if (status === 0) return '审核中'

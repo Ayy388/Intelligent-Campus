@@ -242,17 +242,18 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { getLeaves, getLeave, applyLeave } from '@/api/admin'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
+import type { LeaveApplication } from '@/types'
 
 const userStore = useUserStore()
 const uploadRef = ref()
-const leaves = ref<any[]>([])
+const leaves = ref<LeaveApplication[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const attachmentUrls = ref<string[]>([])
 const form = reactive({ leaveType: '', startTime: '', endTime: '', reason: '', attachment: '' })
 
 const detailVisible = ref(false)
-const detail = ref<any>(null)
+const detail = ref<LeaveApplication | null>(null)
 
 const uploadHeaders = computed(() => ({ Authorization: `Bearer ${userStore.token}` }))
 

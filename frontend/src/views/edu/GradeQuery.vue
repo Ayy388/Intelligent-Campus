@@ -5,6 +5,13 @@
       <p class="text-sm text-mist mt-1">查看全部课程成绩与学业分析</p>
     </div>
 
+    <div class="bg-white rounded-xl border border-soft p-4 mb-6 flex items-center gap-4">
+      <span class="text-sm text-ash">选择学期：</span>
+      <el-select v-model="selectedSemester" placeholder="全部学期" class="w-60" @change="onSemesterChange" clearable>
+        <el-option v-for="s in semesters" :key="s" :label="s" :value="s" />
+      </el-select>
+    </div>
+
     <div v-if="loading" class="flex flex-col items-center justify-center py-24">
       <div class="relative w-16 h-16">
         <div class="absolute inset-0 rounded-full border-4 border-soft"></div>
@@ -154,15 +161,21 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getMyGrades } from '@/api/edu'
+import { getMyGrades, getSemesters, getTranscript } from '@/api/edu'
+import type { Grade, Semester } from '@/types'
 
-const grades = ref<any[]>([])
+const grades = ref<Grade[]>([])
 const loading = ref(false)
 const openSemesters = ref<Set<string>>(new Set())
+const semesters = ref<string[]>([])
+const selectedSemester = ref('')
+const transcript = ref<Record<string, any> | null>(null)
+let fetchGen = 0 // generation counter to prevent stale responses
 
 const gpa = computed(() => {
+  if (transcript.value?.overallGpa != null) return transcript.value.overallGpa
   if (grades.value.length === 0) return 0
-  const points = grades.value.reduce((s: number, g: any) => {
+  const points = grades.value.reduce((s: number, g: Grade) => {
     const score = g.score || 0
     if (score >= 90) return s + 4.0
     if (score >= 80) return s + 3.0
@@ -174,25 +187,25 @@ const gpa = computed(() => {
 })
 
 const totalCredits = computed(() => {
-  return grades.value.reduce((s: number, g: any) => s + (g.credit || 0), 0)
+  return transcript.value?.totalCredits ?? grades.value.reduce((s: number, g: Grade) => s + (g.credit || 0), 0)
 })
 
 const totalCourses = computed(() => grades.value.length)
 
 const maxScore = computed(() => {
   if (grades.value.length === 0) return 0
-  return Math.max(...grades.value.map((g: any) => g.score || 0))
+  return Math.max(...grades.value.map((g: Grade) => g.score || 0))
 })
 
 const semesterGroups = computed(() => {
-  const groups: Record<string, any[]> = {}
-  grades.value.forEach((g: any) => {
+  const groups: Record<string, Grade[]> = {}
+  grades.value.forEach((g: Grade) => {
     const sem = g.semester || '未知学期'
     if (!groups[sem]) groups[sem] = []
     groups[sem].push(g)
   })
   const order = Object.keys(groups).sort().reverse()
-  const ordered: Record<string, any[]> = {}
+  const ordered: Record<string, Grade[]> = {}
   order.forEach(k => { ordered[k] = groups[k] })
   return ordered
 })
@@ -201,7 +214,7 @@ const semesterGpaMap = computed(() => {
   const map: Record<string, number> = {}
   Object.entries(semesterGroups.value).forEach(([sem, list]) => {
     if (list.length === 0) { map[sem] = 0; return }
-    const points = list.reduce((s: number, g: any) => {
+    const points = list.reduce((s: number, g: Grade) => {
       const score = g.score || 0
       if (score >= 90) return s + 4.0
       if (score >= 80) return s + 3.0
@@ -228,7 +241,7 @@ const distributionData = computed(() => {
     { label: '及格 D', range: [60, 70], color: '#f97316', count: 0 },
     { label: '不及格 F', range: [0, 60], color: '#ef4444', count: 0 },
   ]
-  grades.value.forEach((g: any) => {
+  grades.value.forEach((g: Grade) => {
     const score = g.score || 0
     for (const d of dist) {
       if (score >= d.range[0] && score < d.range[1]) { d.count++; break }
@@ -281,7 +294,8 @@ function isSemesterOpen(semester: string) {
   return openSemesters.value.has(semester)
 }
 
-function scoreDotColor(score: number) {
+function scoreDotColor(score: number | undefined) {
+  if (score == null) return '#9CA3AF'
   if (score >= 90) return '#10b981'
   if (score >= 80) return '#3b82f6'
   if (score >= 70) return '#eab308'
@@ -289,7 +303,8 @@ function scoreDotColor(score: number) {
   return '#ef4444'
 }
 
-function scoreTextColor(score: number) {
+function scoreTextColor(score: number | undefined) {
+  if (score == null) return '#9CA3AF'
   if (score >= 90) return '#059669'
   if (score >= 80) return '#2563eb'
   if (score >= 70) return '#ca8a04'
@@ -297,7 +312,8 @@ function scoreTextColor(score: number) {
   return '#dc2626'
 }
 
-function scoreBadgeBg(score: number) {
+function scoreBadgeBg(score: number | undefined) {
+  if (score == null) return '#F3F4F6'
   if (score >= 90) return '#d1fae5'
   if (score >= 80) return '#dbeafe'
   if (score >= 70) return '#fef9c3'
@@ -305,7 +321,8 @@ function scoreBadgeBg(score: number) {
   return '#fee2e2'
 }
 
-function scoreBadgeText(score: number) {
+function scoreBadgeText(score: number | undefined) {
+  if (score == null) return '#9CA3AF'
   if (score >= 90) return '#065f46'
   if (score >= 80) return '#1e40af'
   if (score >= 70) return '#854d0e'
@@ -313,7 +330,8 @@ function scoreBadgeText(score: number) {
   return '#991b1b'
 }
 
-function scoreLabel(score: number) {
+function scoreLabel(score: number | undefined) {
+  if (score == null) return '未录入'
   if (score >= 90) return '优秀'
   if (score >= 80) return '良好'
   if (score >= 70) return '中等'
@@ -344,10 +362,31 @@ function shortSemester(sem: string) {
   return sem.substring(0, 10) + '...'
 }
 
-onMounted(async () => {
+async function onSemesterChange() {
+  const gen = ++fetchGen
   loading.value = true
   try {
-    const r = await getMyGrades()
+    await fetchTranscript()
+    await fetchGrades(gen)
+  } finally {
+    if (gen === fetchGen) loading.value = false
+  }
+}
+
+async function fetchSemesters() {
+  try {
+    const r = await getSemesters()
+    semesters.value = (r.data || []).map((s: Semester) => s.name || s.semester || '')
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchGrades(gen?: number) {
+  if (gen !== undefined && gen !== fetchGen) return // stale
+  try {
+    const r = await getMyGrades(selectedSemester.value || undefined)
+    if (gen !== undefined && gen !== fetchGen) return // stale
     grades.value = r.data || []
     const sorted = Object.keys(semesterGroups.value).sort().reverse()
     if (sorted.length > 0) {
@@ -358,6 +397,25 @@ onMounted(async () => {
     }
   } catch {
     grades.value = []
+  }
+}
+
+async function fetchTranscript() {
+  if (selectedSemester.value) return // semester filter — skip transcript
+  try {
+    const r = await getTranscript()
+    transcript.value = r.data || null
+  } catch {
+    transcript.value = null
+  }
+}
+
+onMounted(async () => {
+  await fetchSemesters()
+  await fetchTranscript()
+  loading.value = true
+  try {
+    await fetchGrades()
   } finally {
     loading.value = false
   }

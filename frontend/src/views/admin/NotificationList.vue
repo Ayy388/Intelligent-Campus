@@ -56,18 +56,19 @@ import { ref, reactive, onMounted } from 'vue'
 import { getNotifications, getNotification, addNotification } from '@/api/admin'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
+import type { Notification } from '@/types'
 const userStore = useUserStore()
-const tableData = ref([])
+const tableData = ref<Notification[]>([])
 const loading = ref(false)
 const page = ref(1)
 const total = ref(0)
 const dialogVisible = ref(false)
 const filterCategory = ref('')
 const detailVisible = ref(false)
-const detailItem = ref<any>(null)
+const detailItem = ref<Notification | null>(null)
 const form = reactive({ title: '', content: '', category: 'general', isTop: false, isUrgent: false })
 async function fetch() { loading.value = true; const r = await getNotifications({ page: page.value, size: 10, category: filterCategory.value || undefined }); tableData.value = r.data.records; total.value = r.data.total; loading.value = false }
-async function viewDetail(row: any) {
+async function viewDetail(row: Notification) {
   try {
     const r = await getNotification(row.id)
     detailItem.value = r.data

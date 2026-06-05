@@ -121,8 +121,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getVenues, addVenue, updateVenue, deleteVenue } from '@/api/club'
 import { ElMessage } from 'element-plus'
+import type { Venue } from '@/types'
 
-const venues = ref<any[]>([])
+const venues = ref<Venue[]>([])
 const loading = ref(false)
 
 const dialogVisible = ref(false)
@@ -150,7 +151,7 @@ function openAdd() {
   dialogVisible.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: Venue) {
   isEdit.value = true
   editId.value = row.id
   form.name = row.name || ''

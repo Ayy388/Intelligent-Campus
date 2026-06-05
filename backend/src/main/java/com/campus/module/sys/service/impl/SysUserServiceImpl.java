@@ -22,6 +22,7 @@ import com.campus.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +56,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void updateProfile(Long userId, SysUser updated) {
         SysUser user = getById(userId);
         if (user == null) throw new BusinessException(404, "用户不存在");
@@ -64,6 +66,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Transactional
     public void changePassword(Long userId, String oldPassword, String newPassword) {
         SysUser user = getById(userId);
         if (user == null) throw new BusinessException(404, "用户不存在");

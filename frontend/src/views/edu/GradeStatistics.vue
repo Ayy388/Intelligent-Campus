@@ -122,13 +122,14 @@ import { ref, computed, onMounted } from 'vue'
 import { getCourses, getCourseGrades, getSemesters } from '@/api/edu'
 import { useUserStore } from '@/store/user'
 import { ElMessage } from 'element-plus'
+import type { Course, Grade, Semester } from '@/types'
 
 const userStore = useUserStore()
 const semesters = ref<string[]>([])
 const selectedSemester = ref('')
 const selectedCourseId = ref<number | null>(null)
-const courses = ref<any[]>([])
-const gradesMap = ref<Record<number, any[]>>({})
+const courses = ref<Course[]>([])
+const gradesMap = ref<Record<number, Grade[]>>({})
 const loading = ref(false)
 
 const displayCourses = computed(() => {
@@ -139,7 +140,7 @@ const displayCourses = computed(() => {
   return list
 })
 
-function flattenGrades(): any[] {
+function flattenGrades(): Grade[] {
   return Object.values(gradesMap.value).flat()
 }
 
@@ -147,25 +148,25 @@ const totalCourses = computed(() => displayCourses.value.length)
 
 const totalStudents = computed(() => {
   const g = flattenGrades()
-  const ids = new Set(g.map((s: any) => s.studentId || s.studentId))
+  const ids = new Set(g.map((s: Grade) => s.studentId))
   return ids.size
 })
 
 const averageScore = computed(() => {
   const g = flattenGrades()
   if (g.length === 0) return '—'
-  const sum = g.reduce((s: number, item: any) => s + (Number(item.score) || 0), 0)
+  const sum = g.reduce((s: number, item: Grade) => s + (Number(item.score) || 0), 0)
   return (sum / g.length).toFixed(1)
 })
 
 const passRate = computed(() => {
   const g = flattenGrades()
   if (g.length === 0) return '—'
-  const passed = g.filter((item: any) => (Number(item.score) || 0) >= 60).length
+  const passed = g.filter((item: Grade) => (Number(item.score) || 0) >= 60).length
   return ((passed / g.length) * 100).toFixed(1) + '%'
 })
 
-function scoreColorClass(score: number) {
+function scoreColorClass(score: number | string) {
   const s = Number(score)
   if (s >= 90) return 'text-green-600 font-medium'
   if (s >= 60) return 'text-ink font-medium'
@@ -179,7 +180,7 @@ function getCourseGradesCount(courseId: number): number {
 function getCourseStats(courseId: number): { avg: string; max: number; min: number; passRate: string; passRateValue: number } | null {
   const g = gradesMap.value[courseId]
   if (!g || g.length === 0) return null
-  const scores = g.map((item: any) => Number(item.score) || 0)
+  const scores = g.map((item: Grade) => Number(item.score) || 0)
   const sum = scores.reduce((s: number, v: number) => s + v, 0)
   const max = Math.max(...scores)
   const min = Math.min(...scores)
@@ -194,7 +195,7 @@ async function loadSemesters() {
   try {
     const r = await getSemesters()
     const data = r.data || []
-    semesters.value = data.map((s: any) => (typeof s === 'string' ? s : s.name || s.semester || ''))
+    semesters.value = data.map((s: Semester) => (typeof s === 'string' ? s : s.name || s.semester || ''))
   } catch {
     ElMessage.error('获取学期列表失败')
   }
@@ -203,7 +204,7 @@ async function loadSemesters() {
 async function loadCourses() {
   loading.value = true
   try {
-    const params: any = { page: 1, size: 999 }
+    const params: Record<string, any> = { page: 1, size: 999 }
     if (selectedSemester.value) {
       params.semester = selectedSemester.value
     }
@@ -225,8 +226,8 @@ async function loadCourseGradesData(courseId: number) {
   }
 }
 
-async function onExpandChange(row: any, expandedRows: any[]) {
-  const expanded = expandedRows && expandedRows.some((r: any) => r.id === row.id)
+async function onExpandChange(row: Course, expandedRows: Course[]) {
+  const expanded = expandedRows && expandedRows.some((r: Course) => r.id === row.id)
   if (expanded && !gradesMap.value[row.id]) {
     await loadCourseGradesData(row.id)
   }

@@ -119,6 +119,7 @@
 import { ref, onMounted } from 'vue'
 import { getPendingActivities, approveActivity } from '@/api/activity'
 import { ElMessage } from 'element-plus'
+import { categoryLabel } from '@/utils/labels'
 
 const activities = ref<any[]>([])
 const loading = ref(false)
@@ -129,11 +130,6 @@ const pageSize = 10
 const rejectVisible = ref(false)
 const rejectId = ref<number | null>(null)
 const rejectReason = ref('')
-
-function categoryLabel(cat: string) {
-  const m: Record<string, string> = { academic: '学术科技', sports: '体育竞技', cultural: '文化艺术', volunteer: '志愿服务', other: '其他' }
-  return m[cat] || cat || '未分类'
-}
 
 function categoryClass(cat: string) {
   const m: Record<string, string> = {

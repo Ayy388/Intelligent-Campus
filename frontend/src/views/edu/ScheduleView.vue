@@ -118,14 +118,15 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { getSchedule, getSemesters } from '@/api/edu'
+import type { Course, Semester, ScheduleItem } from '@/types'
 
 const loading = ref(false)
 const currentWeek = ref(1)
 const currentSemester = ref('')
-const semesters = ref<any[]>([])
-const courses = ref<any[]>([])
+const semesters = ref<Semester[]>([])
+const courses = ref<Course[]>([])
 const detailVisible = ref(false)
-const currentCourse = ref<any>(null)
+const currentCourse = ref<Course | null>(null)
 
 const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
@@ -157,14 +158,14 @@ function getCourseColor(id: number): string {
   return courseColors[id % courseColors.length]
 }
 
-function matchesWeek(sched: any, week: number): boolean {
+function matchesWeek(sched: ScheduleItem, week: number): boolean {
   if (!sched.weeks || sched.weeks === 'all') return true
   if (sched.weeks === 'odd') return week % 2 === 1
   if (sched.weeks === 'even') return week % 2 === 0
   return true
 }
 
-function getCourseForSlot(day: number, timeSlot: number): any[] {
+function getCourseForSlot(day: number, timeSlot: number): Course[] {
   return courses.value.filter(c => {
     if (!c.schedule) return false
     try {
@@ -177,7 +178,7 @@ function getCourseForSlot(day: number, timeSlot: number): any[] {
   })
 }
 
-function showDetail(course: any) {
+function showDetail(course: Course) {
   currentCourse.value = course
   detailVisible.value = true
 }
@@ -246,7 +247,7 @@ onMounted(async () => {
   try {
     const r = await getSemesters()
     semesters.value = r.data || []
-    const active = semesters.value.find((s: any) => s.status === 1)
+    const active = semesters.value.find((s: Semester) => s.status === 1)
     if (active) {
       currentSemester.value = active.xqjc
     }

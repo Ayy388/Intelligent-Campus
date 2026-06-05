@@ -7,6 +7,8 @@ import com.campus.module.edu.entity.TrainingPlan;
 import com.campus.module.edu.entity.TrainingPlanItem;
 import com.campus.module.edu.service.TrainingPlanService;
 import io.jsonwebtoken.Claims;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -17,12 +19,14 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/edu/training-plans")
 @RequiredArgsConstructor
+@Tag(name = "教务管理")
 public class TrainingPlanController {
 
     private final TrainingPlanService trainingPlanService;
 
     // ===== Plan CRUD =====
 
+    @Operation(summary = "分页查询培养方案列表")
     @GetMapping
     public Result<PageResult<TrainingPlan>> list(
             @RequestParam(defaultValue = "1") int page,
@@ -38,11 +42,13 @@ public class TrainingPlanController {
         return Result.ok(pr);
     }
 
+    @Operation(summary = "获取培养方案详情")
     @GetMapping("/{id}")
     public Result<TrainingPlan> get(@PathVariable Long id) {
         return Result.ok(trainingPlanService.getWithDetail(id));
     }
 
+    @Operation(summary = "添加培养方案")
     @PostMapping
     public Result<TrainingPlan> add(@RequestBody TrainingPlan plan) {
         TrainingPlan existing = trainingPlanService.lambdaQuery()
@@ -57,6 +63,7 @@ public class TrainingPlanController {
         return Result.ok(plan);
     }
 
+    @Operation(summary = "更新培养方案")
     @PutMapping("/{id}")
     public Result<TrainingPlan> update(@PathVariable Long id, @RequestBody TrainingPlan plan) {
         plan.setId(id);
@@ -64,6 +71,7 @@ public class TrainingPlanController {
         return Result.ok(plan);
     }
 
+    @Operation(summary = "删除培养方案")
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         trainingPlanService.deletePlan(id);
@@ -72,6 +80,7 @@ public class TrainingPlanController {
 
     // ===== Plan Items =====
 
+    @Operation(summary = "获取培养方案某学期课程项")
     @GetMapping("/{planId}/items")
     public Result<List<TrainingPlanItem>> getItems(
             @PathVariable Long planId,
@@ -79,6 +88,7 @@ public class TrainingPlanController {
         return Result.ok(trainingPlanService.getItems(planId, semesterNumber));
     }
 
+    @Operation(summary = "添加培养方案课程项")
     @PostMapping("/{planId}/items")
     public Result<TrainingPlanItem> addItem(
             @PathVariable Long planId,
@@ -87,6 +97,7 @@ public class TrainingPlanController {
         return Result.ok(trainingPlanService.addItem(item));
     }
 
+    @Operation(summary = "更新培养方案课程项")
     @PutMapping("/items/{itemId}")
     public Result<TrainingPlanItem> updateItem(
             @PathVariable Long itemId,
@@ -95,6 +106,7 @@ public class TrainingPlanController {
         return Result.ok(trainingPlanService.updateItem(item));
     }
 
+    @Operation(summary = "删除培养方案课程项")
     @DeleteMapping("/items/{itemId}")
     public Result<Void> deleteItem(@PathVariable Long itemId) {
         trainingPlanService.deleteItem(itemId);
@@ -103,6 +115,7 @@ public class TrainingPlanController {
 
     // ===== Batch Generation =====
 
+    @Operation(summary = "批量生成学期课程")
     @PostMapping("/{planId}/generate/{semesterNumber}")
     public Result<Map<String, Object>> generateSemester(
             @PathVariable Long planId,
@@ -112,6 +125,7 @@ public class TrainingPlanController {
 
     // ===== Student View =====
 
+    @Operation(summary = "获取我的培养方案（学生端）")
     @GetMapping("/my-plan")
     public Result<Map<String, Object>> myPlan(Authentication auth) {
         Claims claims = (Claims) auth.getDetails();

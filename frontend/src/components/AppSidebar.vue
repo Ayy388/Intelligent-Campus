@@ -72,7 +72,7 @@
           <el-menu-item v-if="userStore.role === 'admin'" index="/admin/venue-manage">场地管理</el-menu-item>
           <el-menu-item v-if="userStore.role === 'counselor'" index="/admin/leave-approval">请假审批</el-menu-item>
           <el-menu-item v-if="userStore.role === 'admin' || userStore.role === 'teacher'" index="/admin/grade-stats">成绩统计</el-menu-item>
-          <el-menu-item v-if="userStore.role === 'counselor'" index="/admin/checkin-stats">签到统计</el-menu-item>
+          
           <el-menu-item v-if="userStore.role === 'student'" index="/admin/leave">请假申请</el-menu-item>
           <el-menu-item v-if="userStore.role !== 'admin' && userStore.role !== 'counselor'" index="/admin/venue">场地预约</el-menu-item>
         </el-sub-menu>
@@ -103,14 +103,7 @@
           <el-menu-item index="/activity/my">我的活动</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu v-if="userStore.role !== 'admin'" index="growth">
-          <template #title>
-            <el-icon><TrendCharts /></el-icon>
-            <span>成长档案</span>
-          </template>
-          <el-menu-item v-if="userStore.role==='student'" index="/growth/profile">我的档案</el-menu-item>
-          <el-menu-item index="/growth/checkin">签到打卡</el-menu-item>
-        </el-sub-menu>
+        
 
         <el-sub-menu v-if="userStore.role !== 'admin'" index="message">
           <template #title>

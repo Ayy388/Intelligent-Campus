@@ -22,8 +22,9 @@
 import { ref, onMounted } from 'vue'
 import { getRecharges, recharge } from '@/api/life'
 import { ElMessage } from 'element-plus'
+import type { CardRecharge } from '@/types'
 const balance = ref(0)
-const records = ref<any[]>([])
+const records = ref<CardRecharge[]>([])
 const page = ref(1)
 const total = ref(0)
 const amounts = [10, 50, 100, 200]

@@ -27,8 +27,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { getGrades, createGrade, updateGrade, deleteGrade } from '@/api/sys'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { SysGrade } from '@/types'
 
-const list = ref<any[]>([])
+const list = ref<SysGrade[]>([])
 const loading = ref(false)
 const page = ref(1)
 const size = ref(20)
@@ -52,9 +53,9 @@ function openCreate() {
   dialogVisible.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: SysGrade) {
   isEdit.value = true; editId.value = row.id
-  form.name = row.name; form.year = row.year
+  form.name = row.name; form.year = row.year ?? new Date().getFullYear()
   dialogVisible.value = true
 }
 

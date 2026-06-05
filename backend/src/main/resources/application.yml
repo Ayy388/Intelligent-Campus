@@ -17,7 +17,7 @@ upload:
   image-dir: uploads/images
 
 jwt:
-  secret: intelligent-campus-jwt-secret-key-2026-0529
+  secret: ${JWT_SECRET}
   expiration: 7200000
 
 deepseek:
