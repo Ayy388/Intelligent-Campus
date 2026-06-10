@@ -20,7 +20,6 @@ import java.util.List;
 public class MessageServiceImpl implements MessageService {
     private final ConversationMapper convMapper;
     private final MessageDetailMapper detailMapper;
-    private final AnnouncementPushMapper apMapper;
     private final SysUserMapper userMapper;
 
     @Override
@@ -106,19 +105,4 @@ public class MessageServiceImpl implements MessageService {
         detail.setIsRead(1);
         detailMapper.updateById(detail);
     }
-
-    @Override
-    public Page<AnnouncementPush> pageAnnouncements(int page, int size) {
-        LambdaQueryWrapper<AnnouncementPush> w = new LambdaQueryWrapper<>();
-        w.orderByDesc(AnnouncementPush::getSendTime);
-        Page<AnnouncementPush> result = apMapper.selectPage(new Page<>(page, size), w);
-        for (AnnouncementPush a : result.getRecords()) {
-            SysUser publisher = userMapper.selectById(a.getPublisherId());
-            if (publisher != null) a.setPublisherName(publisher.getRealName());
-        }
-        return result;
-    }
-
-    @Override
-    public void pushAnnouncement(AnnouncementPush ap) { apMapper.insert(ap); }
 }

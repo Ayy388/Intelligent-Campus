@@ -54,6 +54,14 @@ public class GradeController {
         return Result.ok();
     }
 
+    @Operation(summary = "批量录入成绩")
+    @PostMapping("/batch")
+    public Result<Map<String, Object>> batchInputGrade(@RequestBody List<Grade> grades, Authentication auth) {
+        Claims claims = (Claims) auth.getDetails();
+        Long teacherId = Long.parseLong(claims.getSubject());
+        return Result.ok(gradeService.batchInputGrade(grades, teacherId));
+    }
+
     @Operation(summary = "更新成绩")
     @PutMapping("/{id}")
     public Result<Void> updateGrade(@PathVariable Long id, @RequestBody Grade grade, Authentication auth) {

@@ -8,7 +8,7 @@
     <div class="bg-white rounded-xl border border-soft p-4 mb-6 flex items-center gap-4">
       <span class="text-sm text-ash">选择学期：</span>
       <el-select v-model="selectedSemester" placeholder="全部学期" class="w-60" @change="onSemesterChange" clearable>
-        <el-option v-for="s in semesters" :key="s" :label="s" :value="s" />
+        <el-option v-for="s in semesters" :key="s" :label="semesterLabels[s] || s" :value="s" />
       </el-select>
     </div>
 
@@ -168,6 +168,7 @@ const grades = ref<Grade[]>([])
 const loading = ref(false)
 const openSemesters = ref<Set<string>>(new Set())
 const semesters = ref<string[]>([])
+const semesterLabels = ref<Record<string, string>>({})
 const selectedSemester = ref('')
 const transcript = ref<Record<string, any> | null>(null)
 let fetchGen = 0 // generation counter to prevent stale responses
@@ -376,10 +377,26 @@ async function onSemesterChange() {
 async function fetchSemesters() {
   try {
     const r = await getSemesters()
-    semesters.value = (r.data || []).map((s: Semester) => s.name || s.semester || '')
+    const list = r.data || []
+    const labels: Record<string, string> = {}
+    list.forEach((s: Semester) => { if (s.xqjc) labels[s.xqjc] = s.xqqc || s.xqjc })
+    semesterLabels.value = labels
+    semesters.value = list.map((s: Semester) => s.xqjc || '').filter(Boolean)
+    // 默认选中当前学期
+    const active = list.find((s: Semester) => s.status === 1)
+    if (active && active.xqjc) {
+      selectedSemester.value = active.xqjc
+      // 自动触发查询
+      await onSemesterChange()
+    }
   } catch {
     // ignore
   }
+}
+
+function semesterLabel(code: string) {
+  // 在 semesters 中查找对应全称
+  return code
 }
 
 async function fetchGrades(gen?: number) {
@@ -412,10 +429,11 @@ async function fetchTranscript() {
 
 onMounted(async () => {
   await fetchSemesters()
-  await fetchTranscript()
+  // fetchSemesters 已经自动触发了 onSemesterChange → fetchGrades
+  // 如果没有默认学期（无活跃学期），手动查一次
   loading.value = true
   try {
-    await fetchGrades()
+    if (!selectedSemester.value) await fetchGrades()
   } finally {
     loading.value = false
   }

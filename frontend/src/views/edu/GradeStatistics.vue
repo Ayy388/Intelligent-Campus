@@ -8,7 +8,7 @@
       <div class="flex items-center gap-4">
         <span class="text-sm text-ash whitespace-nowrap">筛选条件</span>
         <el-select v-model="selectedSemester" placeholder="选择学期" clearable class="w-52" @change="onSemesterChange">
-          <el-option v-for="s in semesters" :key="s" :label="s" :value="s" />
+          <el-option v-for="s in semesters" :key="s" :label="semesterLabels[s] || s" :value="s" />
         </el-select>
         <el-select v-model="selectedCourseId" placeholder="选择课程（可搜索）" clearable filterable class="w-72">
           <el-option v-for="c in courses" :key="c.id" :label="c.courseName" :value="c.id" />
@@ -126,6 +126,7 @@ import type { Course, Grade, Semester } from '@/types'
 
 const userStore = useUserStore()
 const semesters = ref<string[]>([])
+const semesterLabels = ref<Record<string, string>>({})
 const selectedSemester = ref('')
 const selectedCourseId = ref<number | null>(null)
 const courses = ref<Course[]>([])
@@ -194,8 +195,17 @@ function getCourseStats(courseId: number): { avg: string; max: number; min: numb
 async function loadSemesters() {
   try {
     const r = await getSemesters()
-    const data = r.data || []
-    semesters.value = data.map((s: Semester) => (typeof s === 'string' ? s : s.name || s.semester || ''))
+    const list = r.data || []
+    const labels: Record<string, string> = {}
+    list.forEach((s: Semester) => { if (s.xqjc) labels[s.xqjc] = s.xqqc || s.xqjc })
+    semesterLabels.value = labels
+    semesters.value = list.map((s: Semester) => s.xqjc || '').filter(Boolean)
+    // 默认选中当前学期
+    const active = list.find((s: Semester) => s.status === 1)
+    if (active && active.xqjc) {
+      selectedSemester.value = active.xqjc
+      await loadCourses()
+    }
   } catch {
     ElMessage.error('获取学期列表失败')
   }

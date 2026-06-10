@@ -61,7 +61,6 @@
             <span>行政服务</span>
           </template>
           <el-menu-item index="/admin/notifications">通知公告</el-menu-item>
-          <el-menu-item v-if="userStore.role === 'counselor' || userStore.role === 'admin'" index="/message/announcement">公告推送</el-menu-item>
           <el-menu-item v-if="userStore.role === 'counselor'" index="/admin/classes">班级管理</el-menu-item>
           <el-menu-item v-if="userStore.role === 'admin'" index="/admin/departments">院系管理</el-menu-item>
           <el-menu-item v-if="userStore.role === 'admin'" index="/admin/majors">专业管理</el-menu-item>
@@ -105,13 +104,6 @@
 
         
 
-        <el-sub-menu v-if="userStore.role !== 'admin'" index="message">
-          <template #title>
-            <el-icon><Message /></el-icon>
-            <span>师生沟通</span>
-          </template>
-          <el-menu-item index="/message/chat">即时消息</el-menu-item>
-        </el-sub-menu>
 
         <el-menu-item index="/ai/chat">
           <el-icon><ChatDotRound /></el-icon>

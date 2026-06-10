@@ -11,9 +11,11 @@ public class Notification {
     private String title;
     private String content;
     private String category;
+    private String targetType;
     private Long publisherId;
     private Integer isTop;
     private Integer isUrgent;
+    private String attachment;
     private Integer viewCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

@@ -7,6 +7,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
+
 @Component
 @Profile("dev")
 @RequiredArgsConstructor
@@ -124,6 +127,9 @@ public class DataInitializer implements CommandLineRunner {
                 UNIQUE KEY uk_student_course_semester (student_id, course_id, semester)
             )
         """);
+
+        // 迁移：edu_grade 增加 grade_level 列
+        try { jdbcTemplate.execute("ALTER TABLE edu_grade ADD COLUMN grade_level VARCHAR(10)"); } catch (Exception ignored) {}
 
         jdbcTemplate.execute("""
             CREATE TABLE IF NOT EXISTS admin_notification (
@@ -248,6 +254,52 @@ public class DataInitializer implements CommandLineRunner {
                 send_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status TINYINT DEFAULT 1,
                 FOREIGN KEY (publisher_id) REFERENCES sys_user(id)
+            )
+        """);
+
+        // 群聊表
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS message_group (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                class_id BIGINT NOT NULL,
+                counselor_id BIGINT NOT NULL,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (class_id) REFERENCES sys_class(id),
+                FOREIGN KEY (counselor_id) REFERENCES sys_user(id)
+            )
+        """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS message_group_member (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                group_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (group_id, user_id),
+                FOREIGN KEY (group_id) REFERENCES message_group(id),
+                FOREIGN KEY (user_id) REFERENCES sys_user(id)
+            )
+        """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS message_group_message (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                group_id BIGINT NOT NULL,
+                sender_id BIGINT NOT NULL,
+                content TEXT NOT NULL,
+                create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES message_group(id),
+                FOREIGN KEY (sender_id) REFERENCES sys_user(id)
+            )
+        """);
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS message_group_read (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                group_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                last_read_msg_id BIGINT,
+                UNIQUE (group_id, user_id),
+                FOREIGN KEY (group_id) REFERENCES message_group(id),
+                FOREIGN KEY (user_id) REFERENCES sys_user(id)
             )
         """);
 
@@ -586,6 +638,28 @@ public class DataInitializer implements CommandLineRunner {
                 jdbcTemplate.update("UPDATE sys_class SET counselor_id=? WHERE department_id=? AND (counselor_id IS NULL OR counselor_id=0)", counselorId, deptId);
             }
         } catch (Exception ignored) {}
+
+        // 自动创建班级群聊
+        try {
+            List<Map<String, Object>> classRows = jdbcTemplate.queryForList(
+                "SELECT sc.id, sc.class_name, sc.counselor_id FROM sys_class sc WHERE sc.counselor_id IS NOT NULL AND sc.counselor_id > 0");
+            for (Map<String, Object> row : classRows) {
+                long classId = ((Number) row.get("id")).longValue();
+                String className = (String) row.get("class_name");
+                long counselorId = ((Number) row.get("counselor_id")).longValue();
+                List<Map<String, Object>> existing = jdbcTemplate.queryForList("SELECT id FROM message_group WHERE class_id=?", classId);
+                Long groupId = existing.isEmpty() ? null : ((Number) existing.get(0).get("id")).longValue();
+                if (groupId == null) {
+                    jdbcTemplate.update("INSERT INTO message_group (name, class_id, counselor_id) VALUES (?,?,?)", className + "群", classId, counselorId);
+                    existing = jdbcTemplate.queryForList("SELECT id FROM message_group WHERE class_id=?", classId);
+                    groupId = existing.isEmpty() ? null : ((Number) existing.get(0).get("id")).longValue();
+                }
+                if (groupId != null) {
+                    jdbcTemplate.update("INSERT IGNORE INTO message_group_member (group_id, user_id) VALUES (?,?)", groupId, counselorId);
+                    jdbcTemplate.update("INSERT IGNORE INTO message_group_member (group_id, user_id) SELECT ?, id FROM sys_user WHERE class_id=? AND role_id=(SELECT id FROM sys_role WHERE role_code='student')", groupId, classId);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     private void seedComprehensiveData(String pwd) {
@@ -609,6 +683,10 @@ public class DataInitializer implements CommandLineRunner {
         jdbcTemplate.update("DELETE FROM club_info");
         jdbcTemplate.update("DELETE FROM ai_message");
         jdbcTemplate.update("DELETE FROM ai_conversation");
+        jdbcTemplate.update("DELETE FROM message_group_read");
+        jdbcTemplate.update("DELETE FROM message_group_message");
+        jdbcTemplate.update("DELETE FROM message_group_member");
+        jdbcTemplate.update("DELETE FROM message_group");
         jdbcTemplate.update("DELETE FROM message_detail");
         jdbcTemplate.update("DELETE FROM message_conversation");
 

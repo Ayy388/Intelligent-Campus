@@ -32,6 +32,34 @@ public class GradeServiceImpl implements GradeService {
     @Override
     @Transactional
     public void inputGrade(Grade grade) {
+        doInputGrade(grade);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> batchInputGrade(List<Grade> grades, Long teacherId) {
+        int success = 0;
+        List<Map<String, Object>> errors = new ArrayList<>();
+        for (Grade grade : grades) {
+            grade.setTeacherId(teacherId);
+            try {
+                doInputGrade(grade);
+                success++;
+            } catch (BusinessException e) {
+                Map<String, Object> err = new LinkedHashMap<>();
+                err.put("studentId", grade.getStudentId());
+                err.put("message", e.getMessage());
+                errors.add(err);
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", success);
+        result.put("failed", errors.size());
+        result.put("errors", errors);
+        return result;
+    }
+
+    private void doInputGrade(Grade grade) {
         if (grade.getScore() == null) throw new BusinessException("成绩不能为空");
         if (grade.getScore().compareTo(BigDecimal.ZERO) < 0 || grade.getScore().compareTo(new BigDecimal("100")) > 0)
             throw new BusinessException("分数必须在 0-100 之间");
@@ -55,6 +83,7 @@ public class GradeServiceImpl implements GradeService {
         grade.setCreateTime(LocalDateTime.now());
         gradeMapper.insert(grade);
     }
+
 
     @Override
     @Transactional

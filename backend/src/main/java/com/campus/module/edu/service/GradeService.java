@@ -7,6 +7,7 @@ import java.util.Map;
 
 public interface GradeService {
     void inputGrade(Grade grade);
+    Map<String, Object> batchInputGrade(List<Grade> grades, Long teacherId);
     void updateGrade(Long id, Grade grade);
     void deleteGrade(Long id);
     Page<Grade> getStudentGradesPage(Long studentId, int page, int size, String semester);

@@ -60,22 +60,6 @@ public class MessageController {
         return Result.ok();
     }
 
-    @Operation(summary = "发布通知公告")
-    @PostMapping("/announcement")
-    public Result<Void> pushAnnouncement(@RequestBody AnnouncementPush ap, Authentication auth) {
-        ap.setPublisherId(getUserId(auth));
-        messageService.pushAnnouncement(ap);
-        return Result.ok();
-    }
-
-    @Operation(summary = "分页查询通知公告")
-    @GetMapping("/announcement")
-    public Result<PageResult<AnnouncementPush>> announcements(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return toPage(messageService.pageAnnouncements(page, size));
-    }
-
     private <T> Result<PageResult<T>> toPage(Page<T> p) {
         PageResult<T> pr = new PageResult<>();
         pr.setRecords(p.getRecords()); pr.setTotal(p.getTotal());

@@ -33,6 +33,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/sys/majors/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/grades/all").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/sys/classes/all").authenticated()
+                .requestMatchers("/api/sys/classes/**").hasAnyRole("admin", "counselor")
+                .requestMatchers(HttpMethod.GET, "/api/sys/users", "/api/sys/users/**").hasAnyRole("admin", "counselor")
                 .requestMatchers("/api/sys/**").hasRole("admin")
 
                 // 排课管理（仅管理员）— 必须在通用 courses 规则之前
@@ -79,7 +81,7 @@ public class SecurityConfig {
 
                 // 通知+指南: 查看→所有人, 增删改→teacher/admin
                 .requestMatchers(HttpMethod.GET, "/api/admin/notifications", "/api/admin/notifications/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/admin/notifications").hasAnyRole("admin", "teacher")
+                .requestMatchers(HttpMethod.POST, "/api/admin/notifications").hasAnyRole("admin", "teacher", "counselor")
                 .requestMatchers(HttpMethod.PUT, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
                 .requestMatchers(HttpMethod.DELETE, "/api/admin/notifications/**").hasAnyRole("admin", "teacher")
                 .requestMatchers("/api/admin/leaves/**").authenticated()
@@ -93,7 +95,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/club/**").authenticated()
                 .requestMatchers("/api/activity/**").authenticated()
 
-                .requestMatchers(HttpMethod.POST, "/api/message/announcement").hasAnyRole("teacher", "admin")
                 .requestMatchers("/api/message/**").authenticated()
                 .requestMatchers("/api/ai/**").authenticated()
                 .requestMatchers("/api/todos/**").authenticated()

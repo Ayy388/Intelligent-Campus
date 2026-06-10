@@ -12,6 +12,4 @@ public interface MessageService {
     Conversation getConvById(Long id);
     void markRead(Long messageId);
     void markRead(Long messageId, Long userId);
-    Page<AnnouncementPush> pageAnnouncements(int page, int size);
-    void pushAnnouncement(AnnouncementPush ap);
 }

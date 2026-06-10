@@ -3,10 +3,12 @@ export interface Notification {
   title: string
   content: string
   category?: string
+  targetType?: string
   publisherId?: number
   publisherName?: string
   isTop?: number
   isUrgent?: number
+  attachment?: string
   viewCount?: number
   targetRole?: string
   read?: boolean

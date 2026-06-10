@@ -40,6 +40,10 @@ export function inputGrade(data: Record<string, any>) {
   return request.post('/edu/grades', data)
 }
 
+export function batchInputGrade(data: Record<string, any>[]) {
+  return request.post('/edu/grades/batch', data)
+}
+
 export function updateGrade(id: number, data: Record<string, any>) {
   return request.put(`/edu/grades/${id}`, data)
 }

@@ -24,6 +24,9 @@ public class UploadController {
     @Value("${upload.image-dir:uploads/images}")
     private String imageDir;
 
+    @Value("${upload.file-dir:uploads/files}")
+    private String fileDir;
+
     @Operation(summary = "上传头像")
     @PostMapping("/avatar")
     public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
@@ -34,6 +37,12 @@ public class UploadController {
     @PostMapping("/image")
     public Result<String> uploadImage(@RequestParam("file") MultipartFile file) {
         return uploadFile(file, imageDir, "images");
+    }
+
+    @Operation(summary = "上传文件（PDF/DOCX/图片等）")
+    @PostMapping("/file")
+    public Result<String> uploadAnyFile(@RequestParam("file") MultipartFile file) {
+        return uploadFile(file, fileDir, "files");
     }
 
     private Result<String> uploadFile(MultipartFile file, String dir, String subPath) {

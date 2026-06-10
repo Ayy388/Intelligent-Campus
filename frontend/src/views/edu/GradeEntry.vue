@@ -41,6 +41,8 @@
           </span>
           <el-button type="primary" size="small" @click="submitAllGrades" :loading="submitting">批量提交成绩</el-button>
         </div>
+        <el-progress v-if="submitting" :percentage="progressPercent" :status="progressStatus" :text-inside="true" :stroke-width="20" class="mb-3" />
+        <div v-if="progressText && submitting" class="text-xs text-gray-400 mb-2">{{ progressText }}</div>
         <el-table :data="filteredStudents" max-height="480" border>
           <el-table-column prop="studentName" label="学生姓名" width="120" />
           <el-table-column prop="studentUsername" label="学号" width="100" />
@@ -109,7 +111,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { getTeacherCourses, getCourseStudents, inputGrade, getCourseGrades, updateGrade } from '@/api/edu'
+import { getTeacherCourses, getCourseStudents, batchInputGrade, inputGrade, getCourseGrades, updateGrade } from '@/api/edu'
 import { ElMessage } from 'element-plus'
 import { previewLevel, levelTagType, levelTagTypeForLevel } from '@/utils/labels'
 import type { Course, CourseSelection, Grade } from '@/types'
@@ -124,6 +126,9 @@ const loading = ref(false)
 const studentsLoading = ref(false)
 const submitting = ref(false)
 const submittingId = ref<number | null>(null)
+const progressPercent = ref(0)
+const progressStatus = ref<'' | 'success' | 'exception' | 'warning'>('')
+const progressText = ref('')
 
 const scores = reactive<Record<number, number>>({})
 const gradeTypes = reactive<Record<number, string>>({})
@@ -246,25 +251,61 @@ async function doSubmitSingle(student: CourseSelection, silent = false, reloadAf
 }
 
 async function submitAllGrades() {
-  submitting.value = true
   const list = filteredStudents.value
-  let success = 0, fail = 0
-  for (let i = 0; i < list.length; i++) {
-    const ok = await doSubmitSingle(list[i], true, false)
-    if (ok) success++; else fail++
-    ElMessage({
-      message: `录入进度: ${i + 1}/${list.length} (成功 ${success}, 失败 ${fail})`,
-      type: fail > 0 ? 'warning' : 'info',
-      duration: 1500
-    })
+  const grades: Record<string, any>[] = []
+  for (const s of list) {
+    if (scores[s.id] === undefined && gradeTypes[s.id] !== '等级制') continue
+    const data: Record<string, any> = {
+      studentId: s.studentId,
+      courseId: selectedCourseId.value,
+      semester: s.semester,
+      gradeType: gradeTypes[s.id],
+      gradeLevel: gradeTypes[s.id] === '等级制' ? gradeLevels[s.id] : '',
+      score: scores[s.id] || 0,
+      remark: remarks[s.id] || ''
+    }
+    if (gradeTypes[s.id] === '等级制') {
+      const levelMap: Record<string, number> = { '优': 90, '良': 80, '中': 70, '及格': 60, '不及格': 50 }
+      data.score = levelMap[gradeLevels[s.id]] || 0
+    }
+    const existing = gradeMap.value[s.studentId]
+    if (existing?.id) data.id = existing.id
+    grades.push(data)
   }
-  await loadGrades()
-  submitting.value = false
-  if (fail === 0) {
-    ElMessage.success(`批量录入完成，共 ${success} 人`)
-  } else {
-    ElMessage.warning(`录入完成: ${success} 成功, ${fail} 失败`)
-  }
+  if (grades.length === 0) { ElMessage.warning('没有可提交的成绩'); return }
+
+  submitting.value = true
+  progressPercent.value = 0
+  progressStatus.value = ''
+  progressText.value = '正在提交...'
+
+  try {
+    const r = await batchInputGrade(grades)
+    const result = r.data
+    const success = result.success || 0
+    const failed = result.failed || 0
+    const errors = result.errors || []
+
+    progressPercent.value = 100
+    progressStatus.value = failed > 0 ? 'warning' : 'success'
+    progressText.value = failed > 0 ? `${success} 成功, ${failed} 失败` : `全部 ${success} 人录入成功`
+
+    for (const s of list) {
+      const err = errors.find((e: any) => e.studentId === s.studentId)
+      if (!err) s.graded = true
+    }
+    await loadGrades()
+
+    setTimeout(() => {
+      if (failed === 0) ElMessage.success(`批量录入完成，共 ${success} 人`)
+      else ElMessage.warning(`录入完成: ${success} 成功, ${failed} 失败`)
+      setTimeout(() => { progressPercent.value = 0; progressText.value = '' }, 2000)
+    }, 500)
+  } catch (e: any) {
+    progressStatus.value = 'exception'
+    progressText.value = '提交失败'
+    ElMessage.error(e?.response?.data?.message || '批量提交失败')
+  } finally { submitting.value = false }
 }
 
 onMounted(async () => {
